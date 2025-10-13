@@ -54,7 +54,7 @@
         .logo-link {
             text-decoration: none;
             color: inherit;
-            cursor: pointer;
+            cursor: default; /* El cursor de agarre se aplica al wrapper de imagen en modo admin */
             display: inline-block; 
         }
         .text-colegio {
@@ -97,7 +97,7 @@
         /* --- ESTILOS DE TARJETAS (COMPACTAS Y ESCALONADAS) --- */
         .card-container {
             transition: transform 0.3s ease, box-shadow 0.3s ease;
-            cursor: pointer;
+            cursor: default; /* Eliminado cursor: pointer de la tarjeta */
             width: 18%; 
             height: auto; 
             flex-shrink: 0; 
@@ -106,6 +106,7 @@
             border-radius: 1rem; 
         }
         .card-container:hover {
+            /* Mantenemos el efecto visual de elevación */
             transform: translateY(-3px);
             box-shadow: 0 12px 25px -5px rgba(0, 0, 0, 0.2); 
         }
@@ -122,12 +123,11 @@
             align-items: center;
             justify-content: center;
             position: relative;
-            /* Cursor de agarre solo en modo admin */
             cursor: default; 
         }
         .admin-mode-drag {
             cursor: grab;
-            touch-action: none; /* Previene el scroll en dispositivos táctiles mientras se arrastra */
+            touch-action: none; /* Previene el scroll mientras se arrastra */
         }
         .coming-soon-text {
             font-size: 1.4rem; 
@@ -137,7 +137,6 @@
             z-index: 10;
         }
         .actual-image {
-             /* La imagen real está absoluta sobre el wrapper */
             position: absolute;
             inset: 0;
             width: 100%;
@@ -212,21 +211,36 @@
     <!-- Mensajes y Status -->
     <footer class="w-full max-w-7xl text-center py-4">
         <div id="error-message" class="text-center mt-2 text-red-500 text-sm font-semibold hidden">
-            Ocurrió un error al cargar o guardar los datos.
+            <!-- Mensaje guía para el usuario -->
+            Error de conexión. Por favor, verifica tus Reglas de Seguridad de Firebase Firestore (Ver código fuente).
+        </div>
+        <!-- Contenedor para la guía de reglas de seguridad -->
+        <div id="rules-guide" class="text-center mt-4 text-xs text-gray-600 hidden">
+            Para solucionar los errores de conexión, **DEBES** establecer las siguientes Reglas de Seguridad en tu consola de Firebase Firestore, bajo la pestaña "Rules" (Hacer clic en "Publish" después de pegar):
+            <pre class="bg-gray-100 p-2 mt-1 rounded-lg text-left inline-block">
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Permite la lectura y escritura total para fines de prueba/despliegue
+    match /{document=**} {
+      allow read, write: if true;
+    }
+  }
+}
+</pre>
         </div>
     </footer>
 
     <!-- Script de Firebase (Lógica del app) y Arrastre -->
     <script>
-        // Establecer nivel de log para depuración de Firebase (usando la API de namespace)
+        // Establecer nivel de log para depuración de Firebase
         if (typeof firebase !== 'undefined' && firebase.firestore) {
             firebase.firestore.setLogLevel('debug');
         } else {
             console.warn("Firebase no cargado completamente al intentar establecer el nivel de log.");
         }
 
-        // Configuración estática proporcionada por el usuario como respaldo o override.
-        const FIREBASE_CONFIG_STATIC = {
+        // Configuración de Firebase estática proporcionada por el usuario (la única fuente de verdad)
+        const FIREBASE_CONFIG = {
             apiKey: "AIzaSyBp7dwu61R7_ZDjmcSUGG7Rg3HtYAAa_uE",
             authDomain: "maestro-del-mes.firebaseapp.com",
             projectId: "maestro-del-mes",
@@ -235,12 +249,6 @@
             appId: "1:983522163635:web:17ce02eb9e8fa7ea1e69c6"
         };
         
-        // Variables globales del entorno Canvas (MANDATORIAS)
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        // Se usa la configuración global si está disponible, sino se usa la estática proporcionada por el usuario.
-        const firebaseConfig = typeof __firebase_config !== 'undefined' && __firebase_config ? JSON.parse(__firebase_config) : FIREBASE_CONFIG_STATIC;
-        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-
         let app, db, auth;
         let adminMode = false; // Estado del modo edición
 
@@ -248,7 +256,6 @@
         let isDragging = false;
         let dragTarget = null;
         let startY = 0;
-        let startScroll = 0;
         let currentPosition = 50; // Posición vertical en porcentaje (0 a 100)
 
         // Definición de los ciclos con nombres simplificados para los encabezados de las tarjetas
@@ -289,6 +296,9 @@
             imageWrappers.forEach(el => {
                 el.classList.toggle('admin-mode-drag', adminMode);
             });
+
+            // Mostrar u ocultar la guía de reglas si el modo admin está activo
+            document.getElementById('rules-guide').classList.toggle('hidden', !adminMode);
             
             console.log(`Modo Admin: ${adminMode ? 'ACTIVADO' : 'DESACTIVADO'}`);
         };
@@ -297,8 +307,6 @@
 
         function startDrag(event, cycleId) {
             if (!adminMode) return;
-            
-            // Prevenir el comportamiento por defecto (ej. arrastrar imagen fuera)
             event.preventDefault(); 
             
             isDragging = true;
@@ -311,7 +319,6 @@
             const currentObjPos = dragTarget.style.objectPosition || '50% 50%';
             currentPosition = parseFloat(currentObjPos.split(' ')[1]) || 50;
             
-            // Cambiar el cursor
             dragTarget.parentElement.style.cursor = 'grabbing';
 
             // Agregar listeners globales para arrastrar y soltar
@@ -324,27 +331,20 @@
         function onDrag(event) {
             if (!isDragging || !dragTarget) return;
 
-            // Obtener la posición Y actual
             const currentY = event.clientY || event.touches[0].clientY;
-            
-            // Calcular el desplazamiento en píxeles
             const deltaY = currentY - startY;
-            
-            // El desplazamiento debe ser relativo a la altura del contenedor
             const wrapperHeight = dragTarget.parentElement.offsetHeight;
             
-            // Mapear el desplazamiento a un cambio en porcentaje de object-position
-            // Multiplicamos por un factor (ej. 0.1) para que el movimiento sea suave
-            const sensitivity = 0.1; 
+            // Sensibilidad ajustada
+            const sensitivity = 0.15; 
             let newPosition = currentPosition + (deltaY / wrapperHeight) * 100 * sensitivity;
 
-            // Limitar el rango de movimiento (ej: 0% a 100%)
+            // Limitar el rango de movimiento (0% a 100%)
             newPosition = Math.max(0, Math.min(100, newPosition));
 
             // Aplicar la nueva posición
             dragTarget.style.objectPosition = `50% ${newPosition}%`;
 
-            // Mantener la posición actual para el siguiente frame
             startY = currentY; 
             currentPosition = newPosition; 
         }
@@ -355,11 +355,10 @@
             isDragging = false;
             dragTarget.parentElement.style.cursor = 'grab';
 
-            // Al finalizar el arrastre, actualizamos el input oculto (para guardar al presionar el botón)
+            // Al finalizar el arrastre, actualizamos el input oculto 
             const cycleId = dragTarget.id.replace('img-', '');
             const positionInput = document.getElementById(`position-input-${cycleId}`);
             if (positionInput) {
-                 // Guardamos la posición actual para que se envíe al presionar "Guardar Contenido"
                 positionInput.value = dragTarget.style.objectPosition; 
             }
             dragTarget = null;
@@ -377,45 +376,41 @@
         // Función de inicialización de Firebase y autenticación
         async function initializeFirebase() {
             try {
-                if (!firebaseConfig) {
-                    console.error("Firebase configuration is missing.");
-                    document.getElementById('error-message').textContent = "Error: Configuración de Firebase no encontrada.";
-                    return;
-                }
-                
-                app = firebase.initializeApp(firebaseConfig);
+                // Usamos la configuración estática que el usuario proporcionó
+                app = firebase.initializeApp(FIREBASE_CONFIG);
                 db = app.firestore(); 
                 auth = app.auth();     
 
-                if (initialAuthToken) {
-                    await auth.signInWithCustomToken(initialAuthToken);
-                } else {
-                    await auth.signInAnonymously();
-                }
+                // Autenticación anónima para leer/escribir (NECESARIO PARA PERSISTENCIA)
+                await auth.signInAnonymously();
 
                 auth.onAuthStateChanged((user) => {
                     if (user) {
-                        console.log("Usuario autenticado. UID:", user.uid);
+                        console.log("Usuario autenticado anónimamente. UID:", user.uid);
                         setupUIAndListeners(); 
                     } else {
-                        console.log("Esperando autenticación...");
+                        // Este else es poco probable que se ejecute si signInAnonymously funciona
+                        console.log("Error: No se pudo autenticar al usuario.");
+                        document.getElementById('error-message').textContent = "Error: La aplicación no pudo conectarse a la base de datos.";
+                        document.getElementById('error-message').classList.remove('hidden');
                     }
                 });
 
             } catch (error) {
                 console.error("Error al inicializar Firebase o autenticar:", error);
-                document.getElementById('error-message').textContent = `Error crítico de Firebase: ${error.message}`;
+                document.getElementById('error-message').textContent = `Error crítico de conexión: ${error.message}. Verifica las Reglas de Seguridad de Firestore.`;
                 document.getElementById('error-message').classList.remove('hidden');
             }
         }
 
+        // FUNCIÓN CLAVE: La ruta es simple y pública para el funcionamiento en Google Sites/GitHub
         function getCycleDocRef(cycleId) {
-            const collectionPath = `artifacts/${appId}/public/data/teacher_of_the_month`;
-            return db.collection(collectionPath).doc(cycleId);
+            // Ruta simplificada: Collection(nombre de la app) / Document(ciclo)
+            return db.collection('teacher_of_the_month').doc(cycleId);
         }
 
         /**
-         * Renderiza la estructura de la tarjeta en el DOM.
+         * Renderiza la estructura de la tarjeta en el DOM. (Mismo código)
          */
         function renderCardStructure(cycle) {
             const container = document.getElementById('cards-container');
@@ -483,7 +478,7 @@
                 const nameInputElement = document.getElementById(`name-input-${cycle.id}`);
                 const descInputElement = document.getElementById(`desc-input-${cycle.id}`);
                 const urlInputElement = document.getElementById(`input-${cycle.id}`);
-                const positionInputElement = document.getElementById(`position-input-${cycle.id}`); // Nuevo input de posición
+                const positionInputElement = document.getElementById(`position-input-${cycle.id}`); 
                 
                 let imageUrl = '';
                 let teacherName = '';
@@ -495,7 +490,6 @@
                     imageUrl = data.imageUrl || '';
                     teacherName = data.teacherName || '';
                     description = data.description || '';
-                    // Cargar la posición guardada de Firebase
                     imagePosition = data.imagePosition || '50% 50%'; 
                 } else {
                     docRef.set({ imageUrl: '', teacherName: '', description: '', cycleId: cycle.id, imagePosition: imagePosition }, { merge: true }).catch(err => {
@@ -508,7 +502,6 @@
                     const tempImg = new Image();
                     tempImg.onload = () => {
                          imgElement.src = imageUrl;
-                         // Aplicar la posición guardada
                          imgElement.style.objectPosition = imagePosition; 
                          imgElement.classList.remove('hidden');
                          soonElement.classList.add('hidden');
@@ -531,11 +524,13 @@
                 nameInputElement.value = teacherName;
                 descInputElement.value = description;
                 urlInputElement.value = imageUrl;
-                positionInputElement.value = imagePosition; // Rellenar el input oculto con la posición guardada
+                positionInputElement.value = imagePosition; 
                 
             }, (error) => {
                 console.error("Error al escuchar cambios en Firestore:", error);
-                document.getElementById('error-message').textContent = "Error de conexión en tiempo real. Revisa la consola.";
+                // Si hay un error, ocultamos la guía de reglas para no estorbar
+                document.getElementById('rules-guide').classList.remove('hidden'); // Mostrar guía de reglas
+                document.getElementById('error-message').textContent = "Error de conexión en tiempo real: Permisos insuficientes. **DEBES** Publicar las Reglas de Seguridad en Firebase (ver abajo).";
                 document.getElementById('error-message').classList.remove('hidden');
             });
         }
@@ -552,13 +547,13 @@
             const nameInput = document.getElementById(`name-input-${cycleId}`);
             const descInput = document.getElementById(`desc-input-${cycleId}`);
             const urlInput = document.getElementById(`input-${cycleId}`);
-            const positionInput = document.getElementById(`position-input-${cycleId}`); // Obtener la posición actual
+            const positionInput = document.getElementById(`position-input-${cycleId}`); 
             const statusElement = document.getElementById(`status-${cycleId}`);
             
             const teacherName = nameInput.value.trim();
             const description = descInput.value.trim();
             const imageUrl = urlInput.value.trim();
-            const imagePosition = positionInput.value; // Valor de posición a guardar
+            const imagePosition = positionInput.value; 
 
             if (!imageUrl && !teacherName && !description) {
                 statusElement.textContent = "Ingresa al menos un valor para guardar.";
@@ -573,7 +568,7 @@
                     imageUrl: imageUrl, 
                     teacherName: teacherName,
                     description: description,
-                    imagePosition: imagePosition, // Guardar la posición de la imagen
+                    imagePosition: imagePosition, 
                     lastUpdated: new Date().toISOString() 
                 }, { merge: true });
                 
