@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Maestro del Mes</title>
+    <!-- Fuentes personalizadas para el logo -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Chewy&family=Inter:wght@400;500;600;700&family=Montserrat:wght@700&display=swap" rel="stylesheet">
+    
+    <!-- Carga de Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Configuración para usar la fuente Inter -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        chewy: ['Chewy', 'cursive'],
+                        montserrat: ['Montserrat', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+    
+    <!-- Firebase SDKs (Migrado a Global Namespace v8 para mejor compatibilidad con Google Sites/iframes) -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+
+    <!-- Estilos personalizados minimalistas, compactos y horizontales -->
+    <style>
+        /* --- TEMA Y PALETA DE COLORES (PROPORCIONADOS) --- */
+        :root {
+            /* Colores permanentes definidos por el usuario */
+            --logo-blue: #1A2C59; 
+            --logo-red: #E02B20; 
+        }
+
+        body {
+            background-color: white; /* FONDO BLANCO COMPLETO */
+            font-family: 'Inter', sans-serif;
+            min-height: 100vh; 
+            display: flex;
+            flex-direction: column;
+            /* Centramos todo el bloque de contenido verticalmente para aprovechar el espacio */
+            justify-content: center;
+            align-items: center;
+            padding: 0.5rem; /* Padding mínimo */
+        }
+        
+        /* --- ESTILOS DEL LOGO --- */
+        .logo-link {
+            text-decoration: none;
+            color: inherit;
+            cursor: pointer;
+            display: inline-block; 
+        }
+        
+        .text-colegio {
+            color: var(--logo-blue); 
+            font-family: 'Montserrat', sans-serif; 
+            font-size: clamp(1rem, 3vw, 1.2rem); 
+            font-weight: 700;
+            letter-spacing: 1px;
+            margin-bottom: -8px; 
+        }
+        .text-pinceladas {
+            font-family: 'Chewy', cursive; 
+            color: var(--logo-red); 
+            font-size: clamp(2.5rem, 8vw, 3.5rem);
+            line-height: 1;
+        }
+        .text-calificaciones {
+            background-color: var(--logo-blue); 
+            color: #ffffff; 
+            padding: 4px 6px; 
+            border-radius: 50px;
+            font-family: 'Montserrat', sans-serif; 
+            font-size: clamp(1rem, 3vw, 1.2rem);
+            font-weight: 700;
+            display: flex; 
+            justify-content: center;
+            align-items: center;
+            margin-top: -3px; 
+            letter-spacing: 2px;
+            box-sizing: border-box;
+            text-align: center;
+            width: auto; 
+        }
+
+        /* --- ESPACIO LIBRE DESPUÉS DEL LOGO (MÁS COMPACTO) --- */
+        header {
+            margin-bottom: 8vh; /* Más compacto: se reduce de 10vh a 8vh */
+        }
+
+        /* --- ESTILOS DE TARJETAS (COMPACTAS Y ESCALONADAS) --- */
+        .card-container {
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            cursor: pointer;
+            width: 18%; 
+            height: auto; 
+            flex-shrink: 0; 
+            margin-bottom: 0; 
+            padding: 0.6rem; 
+            border-radius: 1rem; 
+        }
+        .card-container:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 12px 25px -5px rgba(0, 0, 0, 0.2); 
+        }
+
+        /* Contenedor del Placeholder y la Imagen */
+        .image-placeholder-wrapper {
+            width: 100%;
+            height: 220px; /* ALTURA COMPACTADA */
+            aspect-ratio: 4/5; 
+            background-color: #d4d8de; /* Fondo gris para COMING SOON */
+            border-radius: 0.75rem; 
+            flex-shrink: 0;
+            /* Centrado de texto */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+        .coming-soon-text {
+            font-size: 1.4rem; 
+            font-weight: bold;
+            color: #5c5c5c;
+            text-align: center;
+            z-index: 10;
+        }
+        .actual-image {
+             /* La imagen real está absoluta sobre el wrapper */
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 0.75rem;
+        }
+        
+        /* Layout Horizontal para Escritorio (Desktop First) */
+        #cards-container {
+            display: flex;
+            flex-direction: row;
+            flex-wrap: nowrap;
+            justify-content: center; 
+            align-items: flex-start; 
+            gap: 0.5rem; /* REDUCCIÓN DE SEPARACIÓN HORIZONTAL a 0.5cm (aprox.) */
+            padding-top: 0; 
+            padding-bottom: 0;
+        }
+
+        /* Reglas de Desplazamiento Vertical ESCALABLE (vh) */
+        #card-Secundaria_Primer_Ciclo { margin-top: 0; }
+        #card-Primaria_Primer_Ciclo, #card-Primaria_Segundo_Ciclo { margin-top: 3vh; }
+        #card-Inicial_Primer_Ciclo, #card-Inicial_Segundo_Ciclo { margin-top: 6vh; }
+
+        /* Responsive para Móviles y Tablets */
+        @media (max-width: 1024px) {
+            header { margin-bottom: 1rem; }
+            #cards-container {
+                flex-wrap: wrap; 
+                padding-top: 1rem; 
+                gap: 1rem; 
+            }
+            .card-container {
+                width: 48%; 
+                height: auto; 
+                margin-bottom: 1rem;
+                margin-top: 0 !important;
+                padding: 0.5rem; 
+            }
+            .image-placeholder-wrapper { height: 160px; } /* Altura compactada para móvil */
+        }
+    </style>
+</head>
+<body>
+
+    <header class="text-center py-4 w-full max-w-7xl relative">
+        <!-- LOGO (NUEVO ENCABEZADO) -->
+        <div class="bg-white flex flex-col justify-center items-center text-center">
+            <!-- El 'a' con onClick es el nuevo botón de acceso al Modo Edición -->
+            <a href="#" class="logo-link" onclick="toggleAdminMode(); return false;">
+                <div class="logo-container">
+                    <div class="text-section">
+                        <!-- Estructura del logo exactamente como se solicitó -->
+                        <div class="text-colegio">COLEGIO</div>
+                        <div class="text-pinceladas">Pinceladas</div>
+                        <div class="text-calificaciones">MAESTRO DEL MES</div>
+                    </div>
+                </div>
+            </a>
+        </div>
+    </header>
+
+    <main class="w-full max-w-7xl mx-auto px-2 pb-6 flex-grow flex justify-center items-start">
+        <!-- Contenedor responsivo para las tarjetas -->
+        <div id="cards-container">
+            <!-- Las tarjetas se inicializarán y poblarán con datos de Firestore aquí -->
+        </div>
+    </main>
+    
+    <!-- Mensajes y Status -->
+    <footer class="w-full max-w-7xl text-center py-4">
+        <div id="error-message" class="text-center mt-2 text-red-500 text-sm font-semibold hidden">
+            Ocurrió un error al cargar o guardar los datos.
+        </div>
+    </footer>
+
+    <!-- Script de Firebase (Lógica del app) -->
+    <script>
+        // Establecer nivel de log para depuración de Firebase (usando la API de namespace)
+        if (typeof firebase !== 'undefined' && firebase.firestore) {
+            firebase.firestore.setLogLevel('debug');
+        } else {
+            console.warn("Firebase no cargado completamente al intentar establecer el nivel de log.");
+        }
+
+        // Configuración estática proporcionada por el usuario como respaldo o override.
+        const FIREBASE_CONFIG_STATIC = {
+            apiKey: "AIzaSyBp7dwu61R7_ZDjmcSUGG7Rg3HtYAAa_uE",
+            authDomain: "maestro-del-mes.firebaseapp.com",
+            projectId: "maestro-del-mes",
+            storageBucket: "maestro-del-mes.firebasestorage.app",
+            messagingSenderId: "983522163635",
+            appId: "1:983522163635:web:17ce02eb9e8fa7ea1e69c6"
+        };
+        
+        // Variables globales del entorno Canvas (MANDATORIAS)
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        // Se usa la configuración global si está disponible, sino se usa la estática proporcionada por el usuario.
+        const firebaseConfig = typeof __firebase_config !== 'undefined' && __firebase_config ? JSON.parse(__firebase_config) : FIREBASE_CONFIG_STATIC;
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        let app, db, auth;
+        let adminMode = false; // Estado del modo edición
+
+        // Definición de los ciclos con nombres simplificados para los encabezados de las tarjetas
+        const CYCLES = [
+            { id: 'Inicial_Primer_Ciclo', name: 'Inicial' }, 
+            { id: 'Primaria_Primer_Ciclo', name: 'Primaria' }, 
+            { id: 'Secundaria_Primer_Ciclo', name: 'Secundaria' }, 
+            { id: 'Primaria_Segundo_Ciclo', name: 'Primaria' }, 
+            { id: 'Inicial_Segundo_Ciclo', name: 'Inicial' } 
+        ];
+        
+        // URL para el placeholder de "COMING SOON" con el nuevo color gris (No usada, solo referencia)
+        const COMING_SOON_PLACEHOLDER = 'https://placehold.co/400x500/d4d8de/5c5c5c?text=COMING%20SOON';
+
+        // Lógica para ajustar el ancho de "MAESTRO DEL MES" para que coincida con "Pinceladas"
+        function matchLogoWidths() {
+            try {
+                const pinceladasEl = document.querySelector('.text-pinceladas');
+                const calificacionesEl = document.querySelector('.text-calificaciones');
+                if (pinceladasEl && calificacionesEl) {
+                    // El ancho se establece directamente para que coincida con el de 'Pinceladas'
+                    calificacionesEl.style.width = `${pinceladasEl.offsetWidth}px`;
+                }
+            } catch (error) {
+                console.error("Error al ajustar el ancho del texto 'MAESTRO DEL MES':", error);
+            }
+        }
+        
+        // Función para cambiar el modo de administración (mostrar/ocultar inputs)
+        window.toggleAdminMode = function() {
+            adminMode = !adminMode;
+            const elements = document.querySelectorAll('.admin-controls');
+            
+            elements.forEach(el => {
+                el.classList.toggle('hidden', !adminMode);
+            });
+            
+            console.log(`Modo Admin: ${adminMode ? 'ACTIVADO' : 'DESACTIVADO'}`);
+        };
+
+        // Función de inicialización de Firebase y autenticación
+        async function initializeFirebase() {
+            try {
+                if (!firebaseConfig) {
+                    console.error("Firebase configuration is missing.");
+                    document.getElementById('error-message').textContent = "Error: Configuración de Firebase no encontrada.";
+                    return;
+                }
+                
+                // --- Inicialización usando la API de Namespace (Global) ---
+                app = firebase.initializeApp(firebaseConfig);
+                db = app.firestore(); // Obtener Firestore de la app
+                auth = app.auth();     // Obtener Auth de la app
+
+                // Autenticación
+                if (initialAuthToken) {
+                    await auth.signInWithCustomToken(initialAuthToken);
+                } else {
+                    await auth.signInAnonymously();
+                }
+
+                auth.onAuthStateChanged((user) => {
+                    if (user) {
+                        console.log("Usuario autenticado. UID:", user.uid);
+                        setupUIAndListeners(); // Renderizar UI solo después de la autenticación
+                    } else {
+                        console.log("Esperando autenticación...");
+                    }
+                });
+
+            } catch (error) {
+                console.error("Error al inicializar Firebase o autenticar:", error);
+                document.getElementById('error-message').textContent = `Error crítico de Firebase: ${error.message}`;
+                document.getElementById('error-message').classList.remove('hidden');
+            }
+        }
+
+        // --- LÓGICA DE FIRESTORE ---
+
+        function getCycleDocRef(cycleId) {
+            // Path público y compartido por todos
+            const collectionPath = `artifacts/${appId}/public/data/teacher_of_the_month`;
+            // Uso de firestore.collection().doc()
+            return db.collection(collectionPath).doc(cycleId);
+        }
+
+        /**
+         * Renderiza la estructura de la tarjeta en el DOM.
+         */
+        function renderCardStructure(cycle) {
+            const container = document.getElementById('cards-container');
+            
+            const cardHtml = `
+                <div id="card-${cycle.id}" class="card-container bg-gray-50 p-2 rounded-xl shadow-xl border border-gray-100 flex flex-col items-center">
+                    
+                    <!-- Nombre de sección simplificado (Inicial, Primaria, Secundaria) -->
+                    <h2 class="text-base font-bold text-indigo-700 mb-0.5 pt-1 pb-1 text-center truncate w-full">${cycle.name}</h2>
+                    
+                    <!-- Contenedor para la imagen (Ahora es un wrapper para el placeholder estable) -->
+                    <div id="wrapper-${cycle.id}" class="image-placeholder-wrapper shadow-lg">
+                        <!-- Texto COMING SOON (Visible por defecto) -->
+                        <span id="coming-soon-${cycle.id}" class="coming-soon-text">COMING SOON</span>
+
+                        <!-- Imagen real (Oculta si no hay URL válida) -->
+                        <img id="img-${cycle.id}" 
+                             src="" 
+                             alt="Maestro del Mes ${cycle.name}" 
+                             class="actual-image hidden">
+                    </div>
+
+                    <!-- Información del Maestro (Visible en modo normal) -->
+                    <div class="mt-2 w-full text-center">
+                        <h3 id="name-${cycle.id}" class="text-sm font-extrabold text-gray-800 truncate mb-0.5"></h3>
+                        <p id="desc-${cycle.id}" class="text-xs text-gray-500 italic break-words"></p>
+                    </div>
+
+                    <!-- Controles de Administración Ocultos -->
+                    <div id="controls-${cycle.id}" class="admin-controls hidden w-full mt-2 pt-2 border-t border-gray-200">
+                        <!-- Campos de Edición -->
+                        <input type="text" id="name-input-${cycle.id}" placeholder="Nombre del Maestro" class="w-full p-1 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 mb-1 text-xs">
+                        <textarea id="desc-input-${cycle.id}" placeholder="Frase o reconocimiento (máx. 100 caracteres)" maxlength="100" class="w-full p-1 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 mb-1 text-xs resize-none h-10"></textarea>
+                        <input type="url" id="input-${cycle.id}" placeholder="Pega URL de imagen vertical aquí" class="w-full p-1 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 mb-1 text-xs">
+                        
+                        <button id="btn-${cycle.id}" class="w-full bg-indigo-600 text-white font-semibold py-1 rounded-lg hover:bg-indigo-700 transition duration-150 shadow-md text-xs" onclick="updateContent('${cycle.id}')">
+                            Guardar Contenido
+                        </button>
+                        <p class="text-[10px] text-gray-500 mt-1 text-center" id="status-${cycle.id}"></p>
+                    </div>
+                </div>
+            `;
+            container.innerHTML += cardHtml;
+        }
+
+        /**
+         * Escucha los cambios en la base de datos para actualizar la imagen y el texto en la UI.
+         */
+        function listenForUpdates(cycle) {
+            const docRef = getCycleDocRef(cycle.id);
+            
+            // Uso de firestore.onSnapshot
+            docRef.onSnapshot((docSnap) => {
+                
+                const imgElement = document.getElementById(`img-${cycle.id}`);
+                const soonElement = document.getElementById(`coming-soon-${cycle.id}`);
+                const nameElement = document.getElementById(`name-${cycle.id}`);
+                const descElement = document.getElementById(`desc-${cycle.id}`);
+                
+                const nameInputElement = document.getElementById(`name-input-${cycle.id}`);
+                const descInputElement = document.getElementById(`desc-input-${cycle.id}`);
+                const urlInputElement = document.getElementById(`input-${cycle.id}`);
+                
+                let imageUrl = '';
+                let teacherName = '';
+                let description = '';
+
+                if (docSnap.exists) {
+                    const data = docSnap.data();
+                    imageUrl = data.imageUrl || '';
+                    teacherName = data.teacherName || '';
+                    description = data.description || '';
+                } else {
+                    // Inicializamos el documento si no existe
+                    docRef.set({ imageUrl: '', teacherName: '', description: '', cycleId: cycle.id }, { merge: true }).catch(err => {
+                        console.error("Error al inicializar el documento:", err);
+                    });
+                }
+
+                // 1. Manejo estable del Placeholder / Imagen
+                if (imageUrl) {
+                    const tempImg = new Image();
+                    tempImg.onload = () => {
+                         // Carga exitosa: Mostramos imagen, ocultamos texto
+                         imgElement.src = imageUrl;
+                         imgElement.classList.remove('hidden');
+                         soonElement.classList.add('hidden');
+                    };
+                    tempImg.onerror = () => {
+                         // Carga fallida: Ocultamos imagen, mostramos texto
+                         imgElement.classList.add('hidden');
+                         soonElement.classList.remove('hidden');
+                    };
+                    tempImg.src = imageUrl;
+                } else {
+                    // No hay URL: Ocultamos imagen, mostramos texto
+                    imgElement.classList.add('hidden');
+                    soonElement.classList.remove('hidden');
+                }
+
+                // 2. Actualizar texto de Maestro y Descripción (Vista Pública)
+                nameElement.textContent = teacherName || '—';
+                descElement.textContent = description || '';
+                
+                // 3. Rellenar campos del Administrador (Modo Edición)
+                nameInputElement.value = teacherName;
+                descInputElement.value = description;
+                urlInputElement.value = imageUrl;
+                
+            }, (error) => {
+                console.error("Error al escuchar cambios en Firestore:", error);
+                document.getElementById('error-message').textContent = "Error de conexión en tiempo real. Revisa la consola.";
+                document.getElementById('error-message').classList.remove('hidden');
+            });
+        }
+
+        /**
+         * Maneja el clic del botón y actualiza todos los campos en Firestore.
+         */
+        window.updateContent = async function(cycleId) {
+            if (!db) {
+                console.error("Firestore no está inicializado.");
+                return;
+            }
+
+            const nameInput = document.getElementById(`name-input-${cycleId}`);
+            const descInput = document.getElementById(`desc-input-${cycleId}`);
+            const urlInput = document.getElementById(`input-${cycleId}`);
+            const statusElement = document.getElementById(`status-${cycleId}`);
+            
+            const teacherName = nameInput.value.trim();
+            const description = descInput.value.trim();
+            const imageUrl = urlInput.value.trim();
+
+            if (!imageUrl && !teacherName && !description) {
+                statusElement.textContent = "Ingresa al menos un valor para guardar.";
+                return;
+            }
+            
+            statusElement.textContent = "Guardando...";
+            const docRef = getCycleDocRef(cycleId);
+            
+            try {
+                // Uso de firestore.doc.set
+                await docRef.set({ 
+                    imageUrl: imageUrl, 
+                    teacherName: teacherName,
+                    description: description,
+                    lastUpdated: new Date().toISOString() 
+                }, { merge: true });
+                
+                statusElement.textContent = "¡Contenido guardado con éxito!";
+
+            } catch (error) {
+                console.error("Error al actualizar el contenido:", error);
+                statusElement.textContent = `Error al guardar: ${error.message}`;
+            }
+        };
+
+        // Configuración inicial: Renderizar UI y establecer listeners de datos
+        function setupUIAndListeners() {
+            CYCLES.forEach(cycle => {
+                renderCardStructure(cycle);
+                listenForUpdates(cycle);
+            });
+            matchLogoWidths();
+            window.addEventListener('resize', matchLogoWidths);
+        }
+
+        // Llamamos a la inicialización de Firebase al cargar el contenido del DOM
+        document.addEventListener('DOMContentLoaded', initializeFirebase);
+    </script>
+</body>
+</html>
