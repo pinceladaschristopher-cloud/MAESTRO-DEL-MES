@@ -123,6 +123,7 @@
             align-items: center;
             justify-content: center;
             position: relative;
+            overflow: hidden; /* CRUCIAL para el recorte de imagen */
             cursor: default; 
         }
         .admin-mode-drag {
@@ -138,12 +139,38 @@
         }
         .actual-image {
             position: absolute;
-            inset: 0;
             width: 100%;
             height: 100%;
             object-fit: cover;
             border-radius: 0.75rem;
-            object-position: 50% 50%; /* Posición inicial por defecto */
+            
+            /* Propiedades CSS para la edición total */
+            transform-origin: top left; /* El origen de la transformación es la esquina superior izquierda */
+            transform: scale(1) translate(0px, 0px); /* Usar translate(X, Y) */
+        }
+
+        /* Estilo para el slider de zoom */
+        .zoom-slider {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 8px;
+            background: #e0e0e0;
+            border-radius: 4px;
+            outline: none;
+            opacity: 0.7;
+            transition: opacity .2s;
+        }
+        .zoom-slider:hover {
+            opacity: 1;
+        }
+        .zoom-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: var(--logo-blue);
+            cursor: pointer;
         }
         
         /* Layout Horizontal para Escritorio (Desktop First) */
@@ -230,7 +257,7 @@ service cloud.firestore {
         </div>
     </footer>
 
-    <!-- Script de Firebase (Lógica del app) y Arrastre -->
+    <!-- Script de Firebase (Lógica del app) y Arrastre/Zoom -->
     <script>
         // Establecer nivel de log para depuración de Firebase
         if (typeof firebase !== 'undefined' && firebase.firestore) {
@@ -252,11 +279,12 @@ service cloud.firestore {
         let app, db, auth;
         let adminMode = false; // Estado del modo edición
 
-        // Estado global para el arrastre
+        // Estado global para el arrastre y zoom
         let isDragging = false;
         let dragTarget = null;
+        let startX = 0; // Nueva variable para arrastre horizontal
         let startY = 0;
-        let currentPosition = 50; // Posición vertical en porcentaje (0 a 100)
+        let startTransform = { scale: 100, offsetX: 0, offsetY: 0 }; // Escala en %, Desplazamiento X e Y en px
 
         // Definición de los ciclos con nombres simplificados para los encabezados de las tarjetas
         const CYCLES = [
@@ -303,72 +331,149 @@ service cloud.firestore {
             console.log(`Modo Admin: ${adminMode ? 'ACTIVADO' : 'DESACTIVADO'}`);
         };
 
-        // --- FUNCIONES DE DRAG (ARRRASTRE DE IMAGEN) ---
+        // --- MANEJO DE IMAGEN: DRAG AND ZOOM ---
 
+        // Función auxiliar para obtener la transformación actual de la imagen
+        function getCurrentTransform(element) {
+            const style = window.getComputedStyle(element);
+            const transform = style.transform;
+            let scale = 1;
+            let offsetX = 0; // Agregado desplazamiento X
+            let offsetY = 0;
+
+            if (transform && transform !== 'none') {
+                const matrix = transform.match(/matrix.*\((.+)\)/);
+                if (matrix) {
+                    const values = matrix[1].split(', ').map(parseFloat);
+                    scale = values[0];
+                    offsetX = values[4]; // Índice 4 para translateX
+                    offsetY = values[5]; // Índice 5 para translateY
+                }
+            }
+            return { scale: scale * 100, offsetX: offsetX, offsetY: offsetY }; 
+        }
+
+        // Inicia el arrastre
         function startDrag(event, cycleId) {
-            if (!adminMode) return;
-            event.preventDefault(); 
-            
-            isDragging = true;
             dragTarget = document.getElementById(`img-${cycleId}`);
+            if (!adminMode || !dragTarget || dragTarget.classList.contains('hidden')) return;
             
-            // Usamos event.clientY para mouse y event.touches[0].clientY para touch
+            event.preventDefault(); 
+            isDragging = true;
+            
+            // Obtener la posición inicial (mouse o touch)
+            startX = event.clientX || event.touches[0].clientX; // Capturar posición X inicial
             startY = event.clientY || event.touches[0].clientY; 
 
-            // Extraer la posición actual (ej: "50% 50%")
-            const currentObjPos = dragTarget.style.objectPosition || '50% 50%';
-            currentPosition = parseFloat(currentObjPos.split(' ')[1]) || 50;
+            // Obtener la escala y offset actuales
+            const current = getCurrentTransform(dragTarget);
+            startTransform.scale = current.scale;
+            startTransform.offsetX = current.offsetX; // Capturar offset X inicial
+            startTransform.offsetY = current.offsetY;
             
             dragTarget.parentElement.style.cursor = 'grabbing';
 
-            // Agregar listeners globales para arrastrar y soltar
             document.addEventListener('mousemove', onDrag);
             document.addEventListener('mouseup', endDrag);
             document.addEventListener('touchmove', onDrag);
             document.addEventListener('touchend', endDrag);
         }
 
+        // Se ejecuta durante el arrastre
         function onDrag(event) {
             if (!isDragging || !dragTarget) return;
 
+            const currentX = event.clientX || event.touches[0].clientX;
             const currentY = event.clientY || event.touches[0].clientY;
-            const deltaY = currentY - startY;
-            const wrapperHeight = dragTarget.parentElement.offsetHeight;
+            const deltaX = currentX - startX; // Diferencia total del mouse/dedo en X
+            const deltaY = currentY - startY; // Diferencia total del mouse/dedo en Y
             
-            // Sensibilidad ajustada
-            const sensitivity = 0.15; 
-            let newPosition = currentPosition + (deltaY / wrapperHeight) * 100 * sensitivity;
+            const wrapperWidth = dragTarget.parentElement.offsetWidth; // Ancho del contenedor
+            const wrapperHeight = dragTarget.parentElement.offsetHeight; // Altura del contenedor
+            const currentScale = startTransform.scale / 100;
+            
+            // Altura y Ancho de la imagen ampliada
+            const scaledWidth = wrapperWidth * currentScale;
+            const scaledHeight = wrapperHeight * currentScale;
+            
+            // Espacio fuera del contenedor (solo vertical y horizontal)
+            const overflowX = (scaledWidth - wrapperWidth) / 2;
+            const overflowY = (scaledHeight - wrapperHeight) / 2;
 
-            // Limitar el rango de movimiento (0% a 100%)
-            newPosition = Math.max(0, Math.min(100, newPosition));
+            // Calcular los nuevos desplazamientos X e Y
+            let newOffsetX = startTransform.offsetX + deltaX;
+            let newOffsetY = startTransform.offsetY + deltaY;
+            
+            if (currentScale > 1) {
+                // Límites de desplazamiento X
+                newOffsetX = Math.max(-overflowX, Math.min(overflowX, newOffsetX));
+                // Límites de desplazamiento Y
+                newOffsetY = Math.max(-overflowY, Math.min(overflowY, newOffsetY));
+            } else {
+                // Si no hay zoom, no se puede mover
+                newOffsetX = 0;
+                newOffsetY = 0;
+            }
 
-            // Aplicar la nueva posición
-            dragTarget.style.objectPosition = `50% ${newPosition}%`;
-
-            startY = currentY; 
-            currentPosition = newPosition; 
+            // Aplicar la nueva transformación (usando translate(X, Y))
+            dragTarget.style.transform = `scale(${currentScale}) translate(${newOffsetX}px, ${newOffsetY}px)`;
         }
 
+        // Finaliza el arrastre
         function endDrag() {
             if (!isDragging || !dragTarget) return;
 
             isDragging = false;
             dragTarget.parentElement.style.cursor = 'grab';
 
-            // Al finalizar el arrastre, actualizamos el input oculto 
+            // Al finalizar, actualizar los inputs ocultos
             const cycleId = dragTarget.id.replace('img-', '');
-            const positionInput = document.getElementById(`position-input-${cycleId}`);
-            if (positionInput) {
-                positionInput.value = dragTarget.style.objectPosition; 
+            const offsetInputX = document.getElementById(`offset-input-x-${cycleId}`);
+            const offsetInputY = document.getElementById(`offset-input-y-${cycleId}`);
+            if (offsetInputX && offsetInputY) {
+                const current = getCurrentTransform(dragTarget);
+                offsetInputX.value = current.offsetX; // Guardar offset X
+                offsetInputY.value = current.offsetY; // Guardar offset Y
             }
             dragTarget = null;
 
-            // Eliminar listeners globales
             document.removeEventListener('mousemove', onDrag);
             document.removeEventListener('mouseup', endDrag);
             document.removeEventListener('touchmove', onDrag);
             document.removeEventListener('touchend', endDrag);
         }
+
+        // Maneja el zoom al cambiar el slider
+        window.handleZoom = function(cycleId, sliderElement) {
+            const scale = sliderElement.value / 100; // Valor entre 1.0 y 3.0
+            const imgElement = document.getElementById(`img-${cycleId}`);
+            const scaleInput = document.getElementById(`scale-input-${cycleId}`);
+            const offsetInputX = document.getElementById(`offset-input-x-${cycleId}`);
+            const offsetInputY = document.getElementById(`offset-input-y-${cycleId}`);
+
+            if (!imgElement || imgElement.classList.contains('hidden')) return;
+
+            // Obtener el offset X e Y actuales
+            const current = getCurrentTransform(imgElement);
+            let currentOffsetX = current.offsetX;
+            let currentOffsetY = current.offsetY;
+
+            // Aplicar el nuevo zoom y mantener el offset X e Y.
+            imgElement.style.transform = `scale(${scale}) translate(${currentOffsetX}px, ${currentOffsetY}px)`;
+
+            // Actualizar inputs ocultos para guardar
+            scaleInput.value = scale;
+            
+            // Si reducimos el zoom a 100%, el offset debe ser 0.
+            if (scale === 1) {
+                offsetInputX.value = 0;
+                offsetInputY.value = 0;
+                imgElement.style.transform = `scale(1) translate(0px, 0px)`;
+            } else {
+                 offsetInputX.value = currentOffsetX;
+                 offsetInputY.value = currentOffsetY; 
+            }
+        };
 
 
         // --- FUNCIONES DE FIRESTORE Y SETUP ---
@@ -389,7 +494,6 @@ service cloud.firestore {
                         console.log("Usuario autenticado anónimamente. UID:", user.uid);
                         setupUIAndListeners(); 
                     } else {
-                        // Este else es poco probable que se ejecute si signInAnonymously funciona
                         console.log("Error: No se pudo autenticar al usuario.");
                         document.getElementById('error-message').textContent = "Error: La aplicación no pudo conectarse a la base de datos.";
                         document.getElementById('error-message').classList.remove('hidden');
@@ -405,12 +509,11 @@ service cloud.firestore {
 
         // FUNCIÓN CLAVE: La ruta es simple y pública para el funcionamiento en Google Sites/GitHub
         function getCycleDocRef(cycleId) {
-            // Ruta simplificada: Collection(nombre de la app) / Document(ciclo)
             return db.collection('teacher_of_the_month').doc(cycleId);
         }
 
         /**
-         * Renderiza la estructura de la tarjeta en el DOM. (Mismo código)
+         * Renderiza la estructura de la tarjeta en el DOM.
          */
         function renderCardStructure(cycle) {
             const container = document.getElementById('cards-container');
@@ -444,13 +547,23 @@ service cloud.firestore {
 
                     <!-- Controles de Administración Ocultos -->
                     <div id="controls-${cycle.id}" class="admin-controls hidden w-full mt-2 pt-2 border-t border-gray-200">
+                        <!-- Control de Zoom -->
+                        <div class="mb-2">
+                             <label for="zoom-slider-${cycle.id}" class="text-xs text-gray-700 block mb-1">Zoom (Arrastrar imagen para mover)</label>
+                             <input type="range" id="zoom-slider-${cycle.id}" min="100" max="300" value="100" step="10" 
+                                class="zoom-slider" 
+                                oninput="handleZoom('${cycle.id}', this)">
+                        </div>
+                        
                         <!-- Campos de Edición -->
                         <input type="text" id="name-input-${cycle.id}" placeholder="Nombre del Maestro" class="w-full p-1 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 mb-1 text-xs">
                         <textarea id="desc-input-${cycle.id}" placeholder="Frase o reconocimiento (máx. 100 caracteres)" maxlength="100" class="w-full p-1 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 mb-1 text-xs resize-none h-10"></textarea>
                         <input type="url" id="input-${cycle.id}" placeholder="Pega URL de imagen vertical aquí" class="w-full p-1 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 mb-1 text-xs">
                         
-                        <!-- Campo oculto para guardar la posición de arrastre de la imagen -->
-                        <input type="hidden" id="position-input-${cycle.id}" value="50% 50%">
+                        <!-- Campos ocultos para guardar la posición de arrastre y zoom de la imagen -->
+                        <input type="hidden" id="scale-input-${cycle.id}" value="1">
+                        <input type="hidden" id="offset-input-x-${cycle.id}" value="0"> <!-- NUEVO offset X -->
+                        <input type="hidden" id="offset-input-y-${cycle.id}" value="0"> <!-- offset Y -->
 
                         <button id="btn-${cycle.id}" class="w-full bg-indigo-600 text-white font-semibold py-1 rounded-lg hover:bg-indigo-700 transition duration-150 shadow-md text-xs" onclick="updateContent('${cycle.id}')">
                             Guardar Contenido
@@ -478,21 +591,28 @@ service cloud.firestore {
                 const nameInputElement = document.getElementById(`name-input-${cycle.id}`);
                 const descInputElement = document.getElementById(`desc-input-${cycle.id}`);
                 const urlInputElement = document.getElementById(`input-${cycle.id}`);
-                const positionInputElement = document.getElementById(`position-input-${cycle.id}`); 
+                const scaleInputElement = document.getElementById(`scale-input-${cycle.id}`);
+                const offsetInputXElement = document.getElementById(`offset-input-x-${cycle.id}`);
+                const offsetInputYElement = document.getElementById(`offset-input-y-${cycle.id}`);
+                const zoomSliderElement = document.getElementById(`zoom-slider-${cycle.id}`);
                 
                 let imageUrl = '';
                 let teacherName = '';
                 let description = '';
-                let imagePosition = '50% 50%'; // Posición por defecto
+                let imageScale = '1'; 
+                let imageOffsetX = '0'; // Desplazamiento X
+                let imageOffsetY = '0'; // Desplazamiento Y
 
                 if (docSnap.exists) {
                     const data = docSnap.data();
                     imageUrl = data.imageUrl || '';
                     teacherName = data.teacherName || '';
                     description = data.description || '';
-                    imagePosition = data.imagePosition || '50% 50%'; 
+                    imageScale = data.imageScale || '1'; 
+                    imageOffsetX = data.imageOffsetX || '0'; // Cargar X
+                    imageOffsetY = data.imageOffsetY || '0'; // Cargar Y
                 } else {
-                    docRef.set({ imageUrl: '', teacherName: '', description: '', cycleId: cycle.id, imagePosition: imagePosition }, { merge: true }).catch(err => {
+                    docRef.set({ imageUrl: '', teacherName: '', description: '', cycleId: cycle.id, imageScale: imageScale, imageOffsetX: imageOffsetX, imageOffsetY: imageOffsetY }, { merge: true }).catch(err => {
                         console.error("Error al inicializar el documento:", err);
                     });
                 }
@@ -502,7 +622,8 @@ service cloud.firestore {
                     const tempImg = new Image();
                     tempImg.onload = () => {
                          imgElement.src = imageUrl;
-                         imgElement.style.objectPosition = imagePosition; 
+                         // Aplicar transformación guardada (Zoom + Posición X e Y)
+                         imgElement.style.transform = `scale(${imageScale}) translate(${imageOffsetX}px, ${imageOffsetY}px)`; 
                          imgElement.classList.remove('hidden');
                          soonElement.classList.add('hidden');
                     };
@@ -514,6 +635,8 @@ service cloud.firestore {
                 } else {
                     imgElement.classList.add('hidden');
                     soonElement.classList.remove('hidden');
+                    // Resetear transformación si no hay imagen
+                    imgElement.style.transform = `scale(1) translate(0px, 0px)`;
                 }
 
                 // 2. Actualizar texto de Maestro y Descripción (Vista Pública)
@@ -524,7 +647,10 @@ service cloud.firestore {
                 nameInputElement.value = teacherName;
                 descInputElement.value = description;
                 urlInputElement.value = imageUrl;
-                positionInputElement.value = imagePosition; 
+                scaleInputElement.value = imageScale;
+                offsetInputXElement.value = imageOffsetX; 
+                offsetInputYElement.value = imageOffsetY; 
+                zoomSliderElement.value = parseFloat(imageScale) * 100; // El slider usa valor 100-300
                 
             }, (error) => {
                 console.error("Error al escuchar cambios en Firestore:", error);
@@ -547,13 +673,17 @@ service cloud.firestore {
             const nameInput = document.getElementById(`name-input-${cycleId}`);
             const descInput = document.getElementById(`desc-input-${cycleId}`);
             const urlInput = document.getElementById(`input-${cycleId}`);
-            const positionInput = document.getElementById(`position-input-${cycleId}`); 
+            const scaleInput = document.getElementById(`scale-input-${cycleId}`);
+            const offsetInputX = document.getElementById(`offset-input-x-${cycleId}`);
+            const offsetInputY = document.getElementById(`offset-input-y-${cycleId}`);
             const statusElement = document.getElementById(`status-${cycleId}`);
             
             const teacherName = nameInput.value.trim();
             const description = descInput.value.trim();
             const imageUrl = urlInput.value.trim();
-            const imagePosition = positionInput.value; 
+            const imageScale = scaleInput.value;
+            const imageOffsetX = offsetInputX.value;
+            const imageOffsetY = offsetInputY.value;
 
             if (!imageUrl && !teacherName && !description) {
                 statusElement.textContent = "Ingresa al menos un valor para guardar.";
@@ -568,7 +698,9 @@ service cloud.firestore {
                     imageUrl: imageUrl, 
                     teacherName: teacherName,
                     description: description,
-                    imagePosition: imagePosition, 
+                    imageScale: imageScale, 
+                    imageOffsetX: imageOffsetX, // Guardar X
+                    imageOffsetY: imageOffsetY, // Guardar Y
                     lastUpdated: new Date().toISOString() 
                 }, { merge: true });
                 
