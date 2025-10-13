@@ -26,7 +26,7 @@
         }
     </script>
     
-    <!-- Firebase SDKs (Migrado a Global Namespace v8 para mejor compatibilidad con Google Sites/iframes) -->
+    <!-- Firebase SDKs (v8 para compatibilidad con iframes) -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
@@ -35,21 +35,19 @@
     <style>
         /* --- TEMA Y PALETA DE COLORES (PROPORCIONADOS) --- */
         :root {
-            /* Colores permanentes definidos por el usuario */
             --logo-blue: #1A2C59; 
             --logo-red: #E02B20; 
         }
 
         body {
-            background-color: white; /* FONDO BLANCO COMPLETO */
+            background-color: white; 
             font-family: 'Inter', sans-serif;
             min-height: 100vh; 
             display: flex;
             flex-direction: column;
-            /* Centramos todo el bloque de contenido verticalmente para aprovechar el espacio */
             justify-content: center;
             align-items: center;
-            padding: 0.5rem; /* Padding mínimo */
+            padding: 0.5rem; 
         }
         
         /* --- ESTILOS DEL LOGO --- */
@@ -59,7 +57,6 @@
             cursor: pointer;
             display: inline-block; 
         }
-        
         .text-colegio {
             color: var(--logo-blue); 
             font-family: 'Montserrat', sans-serif; 
@@ -92,9 +89,9 @@
             width: auto; 
         }
 
-        /* --- ESPACIO LIBRE DESPUÉS DEL LOGO (MÁS COMPACTO) --- */
+        /* --- ESPACIO LIBRE DESPUÉS DEL LOGO --- */
         header {
-            margin-bottom: 8vh; /* Más compacto: se reduce de 10vh a 8vh */
+            margin-bottom: 8vh; 
         }
 
         /* --- ESTILOS DE TARJETAS (COMPACTAS Y ESCALONADAS) --- */
@@ -121,11 +118,16 @@
             background-color: #d4d8de; /* Fondo gris para COMING SOON */
             border-radius: 0.75rem; 
             flex-shrink: 0;
-            /* Centrado de texto */
             display: flex;
             align-items: center;
             justify-content: center;
             position: relative;
+            /* Cursor de agarre solo en modo admin */
+            cursor: default; 
+        }
+        .admin-mode-drag {
+            cursor: grab;
+            touch-action: none; /* Previene el scroll en dispositivos táctiles mientras se arrastra */
         }
         .coming-soon-text {
             font-size: 1.4rem; 
@@ -142,6 +144,7 @@
             height: 100%;
             object-fit: cover;
             border-radius: 0.75rem;
+            object-position: 50% 50%; /* Posición inicial por defecto */
         }
         
         /* Layout Horizontal para Escritorio (Desktop First) */
@@ -151,7 +154,7 @@
             flex-wrap: nowrap;
             justify-content: center; 
             align-items: flex-start; 
-            gap: 0.5rem; /* REDUCCIÓN DE SEPARACIÓN HORIZONTAL a 0.5cm (aprox.) */
+            gap: 0.5rem; /* Separación horizontal */
             padding-top: 0; 
             padding-bottom: 0;
         }
@@ -213,7 +216,7 @@
         </div>
     </footer>
 
-    <!-- Script de Firebase (Lógica del app) -->
+    <!-- Script de Firebase (Lógica del app) y Arrastre -->
     <script>
         // Establecer nivel de log para depuración de Firebase (usando la API de namespace)
         if (typeof firebase !== 'undefined' && firebase.firestore) {
@@ -241,6 +244,13 @@
         let app, db, auth;
         let adminMode = false; // Estado del modo edición
 
+        // Estado global para el arrastre
+        let isDragging = false;
+        let dragTarget = null;
+        let startY = 0;
+        let startScroll = 0;
+        let currentPosition = 50; // Posición vertical en porcentaje (0 a 100)
+
         // Definición de los ciclos con nombres simplificados para los encabezados de las tarjetas
         const CYCLES = [
             { id: 'Inicial_Primer_Ciclo', name: 'Inicial' }, 
@@ -250,16 +260,14 @@
             { id: 'Inicial_Segundo_Ciclo', name: 'Inicial' } 
         ];
         
-        // URL para el placeholder de "COMING SOON" con el nuevo color gris (No usada, solo referencia)
-        const COMING_SOON_PLACEHOLDER = 'https://placehold.co/400x500/d4d8de/5c5c5c?text=COMING%20SOON';
+        // --- FUNCIONES DE UTILIDAD DE UI ---
 
-        // Lógica para ajustar el ancho de "MAESTRO DEL MES" para que coincida con "Pinceladas"
+        // Lógica para ajustar el ancho de "MAESTRO DEL MES"
         function matchLogoWidths() {
             try {
                 const pinceladasEl = document.querySelector('.text-pinceladas');
                 const calificacionesEl = document.querySelector('.text-calificaciones');
                 if (pinceladasEl && calificacionesEl) {
-                    // El ancho se establece directamente para que coincida con el de 'Pinceladas'
                     calificacionesEl.style.width = `${pinceladasEl.offsetWidth}px`;
                 }
             } catch (error) {
@@ -270,14 +278,101 @@
         // Función para cambiar el modo de administración (mostrar/ocultar inputs)
         window.toggleAdminMode = function() {
             adminMode = !adminMode;
-            const elements = document.querySelectorAll('.admin-controls');
+            const adminControls = document.querySelectorAll('.admin-controls');
+            const imageWrappers = document.querySelectorAll('.image-placeholder-wrapper');
             
-            elements.forEach(el => {
+            adminControls.forEach(el => {
                 el.classList.toggle('hidden', !adminMode);
+            });
+
+            // Cambiar el cursor de las imágenes a 'grab' solo en modo admin
+            imageWrappers.forEach(el => {
+                el.classList.toggle('admin-mode-drag', adminMode);
             });
             
             console.log(`Modo Admin: ${adminMode ? 'ACTIVADO' : 'DESACTIVADO'}`);
         };
+
+        // --- FUNCIONES DE DRAG (ARRRASTRE DE IMAGEN) ---
+
+        function startDrag(event, cycleId) {
+            if (!adminMode) return;
+            
+            // Prevenir el comportamiento por defecto (ej. arrastrar imagen fuera)
+            event.preventDefault(); 
+            
+            isDragging = true;
+            dragTarget = document.getElementById(`img-${cycleId}`);
+            
+            // Usamos event.clientY para mouse y event.touches[0].clientY para touch
+            startY = event.clientY || event.touches[0].clientY; 
+
+            // Extraer la posición actual (ej: "50% 50%")
+            const currentObjPos = dragTarget.style.objectPosition || '50% 50%';
+            currentPosition = parseFloat(currentObjPos.split(' ')[1]) || 50;
+            
+            // Cambiar el cursor
+            dragTarget.parentElement.style.cursor = 'grabbing';
+
+            // Agregar listeners globales para arrastrar y soltar
+            document.addEventListener('mousemove', onDrag);
+            document.addEventListener('mouseup', endDrag);
+            document.addEventListener('touchmove', onDrag);
+            document.addEventListener('touchend', endDrag);
+        }
+
+        function onDrag(event) {
+            if (!isDragging || !dragTarget) return;
+
+            // Obtener la posición Y actual
+            const currentY = event.clientY || event.touches[0].clientY;
+            
+            // Calcular el desplazamiento en píxeles
+            const deltaY = currentY - startY;
+            
+            // El desplazamiento debe ser relativo a la altura del contenedor
+            const wrapperHeight = dragTarget.parentElement.offsetHeight;
+            
+            // Mapear el desplazamiento a un cambio en porcentaje de object-position
+            // Multiplicamos por un factor (ej. 0.1) para que el movimiento sea suave
+            const sensitivity = 0.1; 
+            let newPosition = currentPosition + (deltaY / wrapperHeight) * 100 * sensitivity;
+
+            // Limitar el rango de movimiento (ej: 0% a 100%)
+            newPosition = Math.max(0, Math.min(100, newPosition));
+
+            // Aplicar la nueva posición
+            dragTarget.style.objectPosition = `50% ${newPosition}%`;
+
+            // Mantener la posición actual para el siguiente frame
+            startY = currentY; 
+            currentPosition = newPosition; 
+        }
+
+        function endDrag() {
+            if (!isDragging || !dragTarget) return;
+
+            isDragging = false;
+            dragTarget.parentElement.style.cursor = 'grab';
+
+            // Al finalizar el arrastre, actualizamos el input oculto (para guardar al presionar el botón)
+            const cycleId = dragTarget.id.replace('img-', '');
+            const positionInput = document.getElementById(`position-input-${cycleId}`);
+            if (positionInput) {
+                 // Guardamos la posición actual para que se envíe al presionar "Guardar Contenido"
+                positionInput.value = dragTarget.style.objectPosition; 
+            }
+            dragTarget = null;
+
+            // Eliminar listeners globales
+            document.removeEventListener('mousemove', onDrag);
+            document.removeEventListener('mouseup', endDrag);
+            document.removeEventListener('touchmove', onDrag);
+            document.removeEventListener('touchend', endDrag);
+        }
+
+
+        // --- FUNCIONES DE FIRESTORE Y SETUP ---
 
         // Función de inicialización de Firebase y autenticación
         async function initializeFirebase() {
@@ -288,12 +383,10 @@
                     return;
                 }
                 
-                // --- Inicialización usando la API de Namespace (Global) ---
                 app = firebase.initializeApp(firebaseConfig);
-                db = app.firestore(); // Obtener Firestore de la app
-                auth = app.auth();     // Obtener Auth de la app
+                db = app.firestore(); 
+                auth = app.auth();     
 
-                // Autenticación
                 if (initialAuthToken) {
                     await auth.signInWithCustomToken(initialAuthToken);
                 } else {
@@ -303,7 +396,7 @@
                 auth.onAuthStateChanged((user) => {
                     if (user) {
                         console.log("Usuario autenticado. UID:", user.uid);
-                        setupUIAndListeners(); // Renderizar UI solo después de la autenticación
+                        setupUIAndListeners(); 
                     } else {
                         console.log("Esperando autenticación...");
                     }
@@ -316,12 +409,8 @@
             }
         }
 
-        // --- LÓGICA DE FIRESTORE ---
-
         function getCycleDocRef(cycleId) {
-            // Path público y compartido por todos
             const collectionPath = `artifacts/${appId}/public/data/teacher_of_the_month`;
-            // Uso de firestore.collection().doc()
             return db.collection(collectionPath).doc(cycleId);
         }
 
@@ -337,8 +426,11 @@
                     <!-- Nombre de sección simplificado (Inicial, Primaria, Secundaria) -->
                     <h2 class="text-base font-bold text-indigo-700 mb-0.5 pt-1 pb-1 text-center truncate w-full">${cycle.name}</h2>
                     
-                    <!-- Contenedor para la imagen (Ahora es un wrapper para el placeholder estable) -->
-                    <div id="wrapper-${cycle.id}" class="image-placeholder-wrapper shadow-lg">
+                    <!-- Contenedor para la imagen con eventos de arrastre -->
+                    <div id="wrapper-${cycle.id}" 
+                         class="image-placeholder-wrapper shadow-lg"
+                         onmousedown="startDrag(event, '${cycle.id}')"
+                         ontouchstart="startDrag(event, '${cycle.id}')">
                         <!-- Texto COMING SOON (Visible por defecto) -->
                         <span id="coming-soon-${cycle.id}" class="coming-soon-text">COMING SOON</span>
 
@@ -362,6 +454,9 @@
                         <textarea id="desc-input-${cycle.id}" placeholder="Frase o reconocimiento (máx. 100 caracteres)" maxlength="100" class="w-full p-1 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 mb-1 text-xs resize-none h-10"></textarea>
                         <input type="url" id="input-${cycle.id}" placeholder="Pega URL de imagen vertical aquí" class="w-full p-1 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 mb-1 text-xs">
                         
+                        <!-- Campo oculto para guardar la posición de arrastre de la imagen -->
+                        <input type="hidden" id="position-input-${cycle.id}" value="50% 50%">
+
                         <button id="btn-${cycle.id}" class="w-full bg-indigo-600 text-white font-semibold py-1 rounded-lg hover:bg-indigo-700 transition duration-150 shadow-md text-xs" onclick="updateContent('${cycle.id}')">
                             Guardar Contenido
                         </button>
@@ -378,7 +473,6 @@
         function listenForUpdates(cycle) {
             const docRef = getCycleDocRef(cycle.id);
             
-            // Uso de firestore.onSnapshot
             docRef.onSnapshot((docSnap) => {
                 
                 const imgElement = document.getElementById(`img-${cycle.id}`);
@@ -389,19 +483,22 @@
                 const nameInputElement = document.getElementById(`name-input-${cycle.id}`);
                 const descInputElement = document.getElementById(`desc-input-${cycle.id}`);
                 const urlInputElement = document.getElementById(`input-${cycle.id}`);
+                const positionInputElement = document.getElementById(`position-input-${cycle.id}`); // Nuevo input de posición
                 
                 let imageUrl = '';
                 let teacherName = '';
                 let description = '';
+                let imagePosition = '50% 50%'; // Posición por defecto
 
                 if (docSnap.exists) {
                     const data = docSnap.data();
                     imageUrl = data.imageUrl || '';
                     teacherName = data.teacherName || '';
                     description = data.description || '';
+                    // Cargar la posición guardada de Firebase
+                    imagePosition = data.imagePosition || '50% 50%'; 
                 } else {
-                    // Inicializamos el documento si no existe
-                    docRef.set({ imageUrl: '', teacherName: '', description: '', cycleId: cycle.id }, { merge: true }).catch(err => {
+                    docRef.set({ imageUrl: '', teacherName: '', description: '', cycleId: cycle.id, imagePosition: imagePosition }, { merge: true }).catch(err => {
                         console.error("Error al inicializar el documento:", err);
                     });
                 }
@@ -410,19 +507,18 @@
                 if (imageUrl) {
                     const tempImg = new Image();
                     tempImg.onload = () => {
-                         // Carga exitosa: Mostramos imagen, ocultamos texto
                          imgElement.src = imageUrl;
+                         // Aplicar la posición guardada
+                         imgElement.style.objectPosition = imagePosition; 
                          imgElement.classList.remove('hidden');
                          soonElement.classList.add('hidden');
                     };
                     tempImg.onerror = () => {
-                         // Carga fallida: Ocultamos imagen, mostramos texto
                          imgElement.classList.add('hidden');
                          soonElement.classList.remove('hidden');
                     };
                     tempImg.src = imageUrl;
                 } else {
-                    // No hay URL: Ocultamos imagen, mostramos texto
                     imgElement.classList.add('hidden');
                     soonElement.classList.remove('hidden');
                 }
@@ -435,6 +531,7 @@
                 nameInputElement.value = teacherName;
                 descInputElement.value = description;
                 urlInputElement.value = imageUrl;
+                positionInputElement.value = imagePosition; // Rellenar el input oculto con la posición guardada
                 
             }, (error) => {
                 console.error("Error al escuchar cambios en Firestore:", error);
@@ -455,11 +552,13 @@
             const nameInput = document.getElementById(`name-input-${cycleId}`);
             const descInput = document.getElementById(`desc-input-${cycleId}`);
             const urlInput = document.getElementById(`input-${cycleId}`);
+            const positionInput = document.getElementById(`position-input-${cycleId}`); // Obtener la posición actual
             const statusElement = document.getElementById(`status-${cycleId}`);
             
             const teacherName = nameInput.value.trim();
             const description = descInput.value.trim();
             const imageUrl = urlInput.value.trim();
+            const imagePosition = positionInput.value; // Valor de posición a guardar
 
             if (!imageUrl && !teacherName && !description) {
                 statusElement.textContent = "Ingresa al menos un valor para guardar.";
@@ -470,11 +569,11 @@
             const docRef = getCycleDocRef(cycleId);
             
             try {
-                // Uso de firestore.doc.set
                 await docRef.set({ 
                     imageUrl: imageUrl, 
                     teacherName: teacherName,
                     description: description,
+                    imagePosition: imagePosition, // Guardar la posición de la imagen
                     lastUpdated: new Date().toISOString() 
                 }, { merge: true });
                 
