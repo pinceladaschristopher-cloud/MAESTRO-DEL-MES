@@ -156,7 +156,7 @@
         const App = {
             db: null,
             auth: null,
-            storage: null, // Nuevo: para Firebase Storage
+            storage: null,
             adminMode: false,
             dragState: { isDragging: false, target: null, startX: 0, startY: 0, startOffsetX: 0, startOffsetY: 0 },
 
@@ -166,7 +166,7 @@
                     const app = firebase.initializeApp(FIREBASE_CONFIG);
                     this.auth = app.auth();
                     this.db = app.firestore();
-                    this.storage = app.storage(); // Nuevo: inicializar Storage
+                    this.storage = app.storage();
                     
                     document.getElementById('status-message').textContent = 'Conectando...';
                     await this.auth.signInAnonymously();
@@ -203,7 +203,6 @@
                 card.id = `card-${cycle.id}`;
                 card.className = "card-container bg-white p-2 rounded-xl shadow-lg border border-gray-200 flex flex-col items-center";
                 
-                // NUEVO: Interfaz de edición compacta y moderna
                 card.innerHTML = `
                     <h2 class="text-base font-bold text-indigo-800 mb-1.5 text-center">${cycle.name}</h2>
                     <div id="wrapper-${cycle.id}" class="image-placeholder-wrapper shadow-inner">
@@ -235,7 +234,22 @@
                         <button id="btn-${cycle.id}" class="w-full bg-indigo-600 text-white font-bold py-2 rounded-lg hover:bg-indigo-700 transition shadow-md text-sm">
                             Guardar Cambios
                         </button>
-                        <p class="text-xs text-gray-500 text-center pt-1" id="save-status-${cycle.id}"></p>
+                        <p class="text-xs text-red-600 font-semibold text-center pt-1" id="save-status-${cycle.id}"></p>
+
+                        <!-- NUEVO: Guía de Reglas de Storage -->
+                        <div id="rules-guide-${cycle.id}" class="hidden text-xs text-gray-600 mt-2 bg-yellow-50 p-2 rounded-lg border border-yellow-200">
+                            <strong class="block text-center">¡Acción Requerida!</strong>
+                            <p class="mt-1">Para poder subir imágenes, ve a <strong class="text-black">Firebase Console → Storage → Rules</strong> y pega el siguiente código:</p>
+                            <pre class="bg-gray-800 text-white text-[10px] p-2 mt-1 rounded-md overflow-x-auto">rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /{allPaths=**} {
+      allow read, write: if true;
+    }
+  }
+}</pre>
+                            <p class="mt-1 text-center">Luego, haz clic en <strong>Publicar</strong>.</p>
+                        </div>
                     </div>
                 `;
                 return card;
@@ -254,7 +268,6 @@
                 document.addEventListener('mouseup', () => this.endDrag());
                 document.addEventListener('touchend', () => this.endDrag());
 
-                // Eventos delegados para inputs y botones
                 container.addEventListener('input', e => { if (e.target.matches('.zoom-slider')) this.handleZoom(e.target); });
                 container.addEventListener('click', e => { if (e.target.matches('button')) this.saveChanges(e.target.id.replace('btn-', '')); });
                 container.addEventListener('change', e => { if (e.target.matches('input[type="file"]')) this.previewImage(e.target); });
@@ -272,11 +285,9 @@
             },
 
             updateCardUI(cycleId, data) {
-                // Actualiza textos
                 document.getElementById(`name-${cycleId}`).textContent = data.teacherName || '—';
                 document.getElementById(`desc-${cycleId}`).textContent = data.description || '';
 
-                // Actualiza imagen y su transformación
                 const imgEl = document.getElementById(`img-${cycleId}`);
                 const placeholderEl = imgEl.previousElementSibling;
                 if (data.imageUrl) {
@@ -294,16 +305,16 @@
                     placeholderEl.classList.remove('hidden');
                 }
 
-                // Actualiza campos de edición
                 document.getElementById(`name-input-${cycleId}`).value = data.teacherName || '';
                 document.getElementById(`desc-input-${cycleId}`).value = data.description || '';
                 document.getElementById(`zoom-slider-${cycleId}`).value = (data.imageScale || 1) * 100;
             },
 
-            // Lógica de guardado con subida de archivo
             async saveChanges(cycleId) {
                 const statusEl = document.getElementById(`save-status-${cycleId}`);
+                const rulesGuideEl = document.getElementById(`rules-guide-${cycleId}`);
                 statusEl.textContent = 'Guardando...';
+                rulesGuideEl.classList.add('hidden'); // Ocultar guía al intentar guardar
 
                 const fileInput = document.getElementById(`file-input-${cycleId}`);
                 const file = fileInput.files[0];
@@ -325,7 +336,13 @@
                         const docRef = this.db.collection('teacher_of_the_month').doc(cycleId);
                         await docRef.set(data, { merge: true });
                         statusEl.textContent = '¡Guardado con éxito!';
-                        setTimeout(() => statusEl.textContent = '', 3000);
+                        statusEl.classList.remove('text-red-600');
+                        statusEl.classList.add('text-green-600');
+                        setTimeout(() => {
+                            statusEl.textContent = '';
+                            statusEl.classList.remove('text-green-600');
+                            statusEl.classList.add('text-red-600');
+                        }, 3000);
                     } catch(error) {
                         statusEl.textContent = `Error: ${error.message}`;
                         console.error("Error al guardar en Firestore:", error);
@@ -333,7 +350,6 @@
                 };
 
                 if (file) {
-                    // Si hay un archivo, subirlo primero
                     const storageRef = this.storage.ref(`maestro-del-mes/${cycleId}_${Date.now()}_${file.name}`);
                     const uploadTask = storageRef.put(file);
 
@@ -343,18 +359,22 @@
                             statusEl.textContent = `Subiendo: ${Math.round(progress)}%`;
                         }, 
                         (error) => {
-                            statusEl.textContent = 'Error al subir la imagen.';
+                             // MEJORA: Detectar error de permisos
+                            if (error.code === 'storage/unauthorized' || error.code === 'storage/object-not-found') {
+                                statusEl.textContent = 'Error: Permisos insuficientes en Storage.';
+                                rulesGuideEl.classList.remove('hidden'); // Mostrar guía si hay error
+                            } else {
+                                statusEl.textContent = 'Error al subir la imagen.';
+                            }
                             console.error("Error de subida:", error);
                         }, 
                         async () => {
-                            // Cuando la subida termina, obtener URL y guardar todo
                             dataToSave.imageUrl = await uploadTask.snapshot.ref.getDownloadURL();
                             await saveDataToFirestore(dataToSave);
-                            fileInput.value = ''; // Limpiar el input de archivo
+                            fileInput.value = '';
                         }
                     );
                 } else {
-                    // Si no hay archivo, solo guardar los otros datos
                     await saveDataToFirestore(dataToSave);
                 }
             },
@@ -376,7 +396,7 @@
                 reader.onload = (e) => {
                     const imgEl = document.getElementById(`img-${cycleId}`);
                     imgEl.src = e.target.result;
-                    imgEl.style.transform = 'scale(1) translate(0px, 0px) translateZ(0)'; // Resetear al previsualizar
+                    imgEl.style.transform = 'scale(1) translate(0px, 0px) translateZ(0)';
                     document.getElementById(`zoom-slider-${cycleId}`).value = 100;
                     imgEl.classList.remove('hidden');
                     imgEl.previousElementSibling.classList.add('hidden');
@@ -392,7 +412,6 @@
             parseTransform(transformStr) { /* sin cambios */ }
         };
 
-        // Re-implementar funciones sin cambios para brevedad
         App.handleZoom = function(slider) { const cycleId = slider.id.replace('zoom-slider-', ''); const imgEl = document.getElementById(`img-${cycleId}`); const scale = slider.value / 100; const currentTransform = this.parseTransform(imgEl.style.transform); imgEl.style.transform = `scale(${scale}) translate(${currentTransform.offsetX}px, ${currentTransform.offsetY}px) translateZ(0)`; };
         App.startDrag = function(event) { if (!this.adminMode) return; const wrapper = event.target.closest('.image-placeholder-wrapper'); if (!wrapper) return; const img = wrapper.querySelector('.actual-image'); if (!img || img.classList.contains('hidden')) return; event.preventDefault(); this.dragState = { isDragging: true, target: img, startX: event.clientX || event.touches[0].clientX, startY: event.clientY || event.touches[0].clientY, ...this.parseTransform(img.style.transform) }; this.dragState.startOffsetX = this.dragState.offsetX; this.dragState.startOffsetY = this.dragState.offsetY; };
         App.onDrag = function(event) { if (!this.dragState.isDragging) return; const clientX = event.clientX || event.touches[0].clientX; const clientY = event.clientY || event.touches[0].clientY; const deltaX = clientX - this.dragState.startX; const deltaY = clientY - this.dragState.startY; const newOffsetX = this.dragState.startOffsetX + deltaX; const newOffsetY = this.dragState.startOffsetY + deltaY; this.dragState.target.style.transform = `scale(${this.dragState.scale}) translate(${newOffsetX}px, ${newOffsetY}px) translateZ(0)`; };
@@ -404,3 +423,4 @@
     </script>
 </body>
 </html>
+
