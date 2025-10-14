@@ -25,11 +25,10 @@
         }
     </script>
     
-    <!-- Firebase SDKs v8 - AÑADIDO STORAGE -->
+    <!-- Firebase SDKs v8 -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js"></script>
 
     <!-- Estilos personalizados -->
     <style>
@@ -156,7 +155,6 @@
         const App = {
             db: null,
             auth: null,
-            storage: null,
             adminMode: false,
             dragState: { isDragging: false, target: null, startX: 0, startY: 0, startOffsetX: 0, startOffsetY: 0 },
 
@@ -166,7 +164,6 @@
                     const app = firebase.initializeApp(FIREBASE_CONFIG);
                     this.auth = app.auth();
                     this.db = app.firestore();
-                    this.storage = app.storage();
                     
                     document.getElementById('status-message').textContent = 'Conectando...';
                     await this.auth.signInAnonymously();
@@ -203,6 +200,7 @@
                 card.id = `card-${cycle.id}`;
                 card.className = "card-container bg-white p-2 rounded-xl shadow-lg border border-gray-200 flex flex-col items-center";
                 
+                // VUELTA A URL CON INTERFAZ MODERNA
                 card.innerHTML = `
                     <h2 class="text-base font-bold text-indigo-800 mb-1.5 text-center">${cycle.name}</h2>
                     <div id="wrapper-${cycle.id}" class="image-placeholder-wrapper shadow-inner">
@@ -214,14 +212,12 @@
                         <p id="desc-${cycle.id}" class="text-xs text-gray-600 italic break-words h-10"></p>
                     </div>
                     <div id="controls-${cycle.id}" class="admin-controls hidden w-full mt-2 pt-2 border-t border-gray-200 space-y-2">
-                        <!-- Image Settings -->
-                        <div class="bg-gray-50 p-2 rounded-lg border border-gray-200">
-                            <label class="text-xs font-semibold text-gray-500 block mb-2">Ajustes de Imagen</label>
-                            <div class="flex items-center gap-3">
-                                <label class="flex-shrink-0 bg-indigo-500 text-white text-xs font-bold text-center py-2 px-3 rounded-lg cursor-pointer hover:bg-indigo-600 transition-colors shadow-sm">
-                                    <span>Subir Foto</span>
-                                    <input type="file" id="file-input-${cycle.id}" class="hidden" accept="image/*">
-                                </label>
+                        <!-- Image Settings con URL -->
+                        <div class="bg-gray-50 p-2 rounded-lg border border-gray-200 space-y-2">
+                            <label class="text-xs font-semibold text-gray-500 block">Ajustes de Imagen</label>
+                            <input type="url" id="url-input-${cycle.id}" placeholder="Pega el enlace de la imagen aquí" class="w-full p-2 border border-gray-300 rounded-lg text-sm focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500">
+                            <div class="flex items-center gap-2 pt-1">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="flex-shrink-0 text-gray-500" viewBox="0 0 16 16"><path d="M10.5 8a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0z"/><path d="M6 8a2 2 0 1 0 4 0 2 2 0 0 0-4 0zM1.666 8a5.952 5.952 0 0 0 2.45 1.915l.595.286a.56.56 0 0 1 .595-.286l.662-.315a5.952 5.952 0 0 0 5.258 0l.662.315a.56.56 0 0 1 .595.286l.595-.286A5.952 5.952 0 0 0 14.334 8 5.952 5.952 0 0 0 11.884 6.085l-.595-.286a.56.56 0 0 1-.595.286l-.662.315a5.952 5.952 0 0 0-5.258 0l-.662-.315a.56.56 0 0 1-.595-.286l-.595.286A5.952 5.952 0 0 0 1.666 8zM16 8s-3-5.5-8-5.5S0 8 0 8s3 5.5 8 5.5S16 8 16 8z"/></svg>
                                 <input type="range" id="zoom-slider-${cycle.id}" min="100" max="300" value="100" class="zoom-slider w-full" title="Ajustar zoom de la imagen">
                             </div>
                         </div>
@@ -234,22 +230,7 @@
                         <button id="btn-${cycle.id}" class="w-full bg-indigo-600 text-white font-bold py-2 rounded-lg hover:bg-indigo-700 transition shadow-md text-sm">
                             Guardar Cambios
                         </button>
-                        <p class="text-xs text-red-600 font-semibold text-center pt-1" id="save-status-${cycle.id}"></p>
-
-                        <!-- NUEVO: Guía de Reglas de Storage -->
-                        <div id="rules-guide-${cycle.id}" class="hidden text-xs text-gray-600 mt-2 bg-yellow-50 p-2 rounded-lg border border-yellow-200">
-                            <strong class="block text-center">¡Acción Requerida!</strong>
-                            <p class="mt-1">Para poder subir imágenes, ve a <strong class="text-black">Firebase Console → Storage → Rules</strong> y pega el siguiente código:</p>
-                            <pre class="bg-gray-800 text-white text-[10px] p-2 mt-1 rounded-md overflow-x-auto">rules_version = '2';
-service firebase.storage {
-  match /b/{bucket}/o {
-    match /{allPaths=**} {
-      allow read, write: if true;
-    }
-  }
-}</pre>
-                            <p class="mt-1 text-center">Luego, haz clic en <strong>Publicar</strong>.</p>
-                        </div>
+                        <p class="text-xs text-center pt-1" id="save-status-${cycle.id}"></p>
                     </div>
                 `;
                 return card;
@@ -268,9 +249,12 @@ service firebase.storage {
                 document.addEventListener('mouseup', () => this.endDrag());
                 document.addEventListener('touchend', () => this.endDrag());
 
-                container.addEventListener('input', e => { if (e.target.matches('.zoom-slider')) this.handleZoom(e.target); });
+                // Eventos delegados para inputs
+                container.addEventListener('input', e => { 
+                    if (e.target.matches('.zoom-slider')) this.handleZoom(e.target); 
+                    if (e.target.matches('input[type="url"]')) this.previewUrlImage(e.target);
+                });
                 container.addEventListener('click', e => { if (e.target.matches('button')) this.saveChanges(e.target.id.replace('btn-', '')); });
-                container.addEventListener('change', e => { if (e.target.matches('input[type="file"]')) this.previewImage(e.target); });
             },
 
             // 4. LÓGICA DE DATOS
@@ -288,41 +272,23 @@ service firebase.storage {
                 document.getElementById(`name-${cycleId}`).textContent = data.teacherName || '—';
                 document.getElementById(`desc-${cycleId}`).textContent = data.description || '';
 
-                const imgEl = document.getElementById(`img-${cycleId}`);
-                const placeholderEl = imgEl.previousElementSibling;
-                if (data.imageUrl) {
-                    const tempImg = new Image();
-                    tempImg.onload = () => {
-                        imgEl.src = data.imageUrl;
-                        imgEl.style.transform = `scale(${data.imageScale || 1}) translate(${data.imageOffsetX || 0}px, ${data.imageOffsetY || 0}px) translateZ(0)`;
-                        imgEl.classList.remove('hidden');
-                        placeholderEl.classList.add('hidden');
-                    };
-                    tempImg.onerror = () => { imgEl.classList.add('hidden'); placeholderEl.classList.remove('hidden'); };
-                    tempImg.src = data.imageUrl;
-                } else {
-                    imgEl.classList.add('hidden');
-                    placeholderEl.classList.remove('hidden');
-                }
+                this.previewUrlImage(document.getElementById(`url-input-${cycleId}`), data.imageUrl, data);
 
                 document.getElementById(`name-input-${cycleId}`).value = data.teacherName || '';
                 document.getElementById(`desc-input-${cycleId}`).value = data.description || '';
+                document.getElementById(`url-input-${cycleId}`).value = data.imageUrl || '';
                 document.getElementById(`zoom-slider-${cycleId}`).value = (data.imageScale || 1) * 100;
             },
 
             async saveChanges(cycleId) {
                 const statusEl = document.getElementById(`save-status-${cycleId}`);
-                const rulesGuideEl = document.getElementById(`rules-guide-${cycleId}`);
                 statusEl.textContent = 'Guardando...';
-                rulesGuideEl.classList.add('hidden'); // Ocultar guía al intentar guardar
 
-                const fileInput = document.getElementById(`file-input-${cycleId}`);
-                const file = fileInput.files[0];
-                
                 const imgEl = document.getElementById(`img-${cycleId}`);
                 const transform = this.parseTransform(imgEl.style.transform);
 
                 const dataToSave = {
+                    imageUrl: document.getElementById(`url-input-${cycleId}`).value.trim(),
                     teacherName: document.getElementById(`name-input-${cycleId}`).value.trim(),
                     description: document.getElementById(`desc-input-${cycleId}`).value.trim(),
                     imageScale: document.getElementById(`zoom-slider-${cycleId}`).value / 100,
@@ -331,51 +297,19 @@ service firebase.storage {
                     lastUpdated: new Date().toISOString()
                 };
 
-                const saveDataToFirestore = async (data) => {
-                    try {
-                        const docRef = this.db.collection('teacher_of_the_month').doc(cycleId);
-                        await docRef.set(data, { merge: true });
-                        statusEl.textContent = '¡Guardado con éxito!';
-                        statusEl.classList.remove('text-red-600');
-                        statusEl.classList.add('text-green-600');
-                        setTimeout(() => {
-                            statusEl.textContent = '';
-                            statusEl.classList.remove('text-green-600');
-                            statusEl.classList.add('text-red-600');
-                        }, 3000);
-                    } catch(error) {
-                        statusEl.textContent = `Error: ${error.message}`;
-                        console.error("Error al guardar en Firestore:", error);
-                    }
-                };
-
-                if (file) {
-                    const storageRef = this.storage.ref(`maestro-del-mes/${cycleId}_${Date.now()}_${file.name}`);
-                    const uploadTask = storageRef.put(file);
-
-                    uploadTask.on('state_changed', 
-                        (snapshot) => {
-                            const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-                            statusEl.textContent = `Subiendo: ${Math.round(progress)}%`;
-                        }, 
-                        (error) => {
-                             // MEJORA: Detectar error de permisos
-                            if (error.code === 'storage/unauthorized' || error.code === 'storage/object-not-found') {
-                                statusEl.textContent = 'Error: Permisos insuficientes en Storage.';
-                                rulesGuideEl.classList.remove('hidden'); // Mostrar guía si hay error
-                            } else {
-                                statusEl.textContent = 'Error al subir la imagen.';
-                            }
-                            console.error("Error de subida:", error);
-                        }, 
-                        async () => {
-                            dataToSave.imageUrl = await uploadTask.snapshot.ref.getDownloadURL();
-                            await saveDataToFirestore(dataToSave);
-                            fileInput.value = '';
-                        }
-                    );
-                } else {
-                    await saveDataToFirestore(dataToSave);
+                try {
+                    const docRef = this.db.collection('teacher_of_the_month').doc(cycleId);
+                    await docRef.set(dataToSave, { merge: true });
+                    statusEl.textContent = '¡Guardado con éxito!';
+                    statusEl.classList.add('text-green-600');
+                    setTimeout(() => {
+                        statusEl.textContent = '';
+                        statusEl.classList.remove('text-green-600');
+                    }, 3000);
+                } catch(error) {
+                    statusEl.textContent = `Error: ${error.message}`;
+                    statusEl.classList.add('text-red-600');
+                    console.error("Error al guardar en Firestore:", error);
                 }
             },
 
@@ -387,21 +321,35 @@ service firebase.storage {
                 document.getElementById('status-message').textContent = '';
             },
 
-            previewImage(input) {
-                const cycleId = input.id.replace('file-input-', '');
-                const file = input.files[0];
-                if (!file) return;
+            previewUrlImage(input, overrideUrl = null, data = null) {
+                const cycleId = input.id.replace('url-input-', '');
+                const imageUrl = overrideUrl !== null ? overrideUrl : input.value.trim();
+                const imgEl = document.getElementById(`img-${cycleId}`);
+                const placeholderEl = imgEl.previousElementSibling;
 
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    const imgEl = document.getElementById(`img-${cycleId}`);
-                    imgEl.src = e.target.result;
-                    imgEl.style.transform = 'scale(1) translate(0px, 0px) translateZ(0)';
-                    document.getElementById(`zoom-slider-${cycleId}`).value = 100;
+                if (!imageUrl) {
+                    imgEl.classList.add('hidden');
+                    placeholderEl.classList.remove('hidden');
+                    return;
+                }
+
+                const tempImg = new Image();
+                tempImg.onload = () => {
+                    imgEl.src = imageUrl;
+                    if (data) { // Si vienen datos, aplicar transformaciones guardadas
+                         imgEl.style.transform = `scale(${data.imageScale || 1}) translate(${data.imageOffsetX || 0}px, ${data.imageOffsetY || 0}px) translateZ(0)`;
+                    } else { // Si es una URL nueva, resetear
+                         imgEl.style.transform = 'scale(1) translate(0px, 0px) translateZ(0)';
+                         document.getElementById(`zoom-slider-${cycleId}`).value = 100;
+                    }
                     imgEl.classList.remove('hidden');
-                    imgEl.previousElementSibling.classList.add('hidden');
+                    placeholderEl.classList.add('hidden');
                 };
-                reader.readAsDataURL(file);
+                tempImg.onerror = () => {
+                    imgEl.classList.add('hidden');
+                    placeholderEl.classList.remove('hidden');
+                };
+                tempImg.src = imageUrl;
             },
             
             handleZoom(slider) { /* sin cambios */ },
@@ -412,6 +360,7 @@ service firebase.storage {
             parseTransform(transformStr) { /* sin cambios */ }
         };
 
+        // Re-implementar funciones sin cambios para brevedad
         App.handleZoom = function(slider) { const cycleId = slider.id.replace('zoom-slider-', ''); const imgEl = document.getElementById(`img-${cycleId}`); const scale = slider.value / 100; const currentTransform = this.parseTransform(imgEl.style.transform); imgEl.style.transform = `scale(${scale}) translate(${currentTransform.offsetX}px, ${currentTransform.offsetY}px) translateZ(0)`; };
         App.startDrag = function(event) { if (!this.adminMode) return; const wrapper = event.target.closest('.image-placeholder-wrapper'); if (!wrapper) return; const img = wrapper.querySelector('.actual-image'); if (!img || img.classList.contains('hidden')) return; event.preventDefault(); this.dragState = { isDragging: true, target: img, startX: event.clientX || event.touches[0].clientX, startY: event.clientY || event.touches[0].clientY, ...this.parseTransform(img.style.transform) }; this.dragState.startOffsetX = this.dragState.offsetX; this.dragState.startOffsetY = this.dragState.offsetY; };
         App.onDrag = function(event) { if (!this.dragState.isDragging) return; const clientX = event.clientX || event.touches[0].clientX; const clientY = event.clientY || event.touches[0].clientY; const deltaX = clientX - this.dragState.startX; const deltaY = clientY - this.dragState.startY; const newOffsetX = this.dragState.startOffsetX + deltaX; const newOffsetY = this.dragState.startOffsetY + deltaY; this.dragState.target.style.transform = `scale(${this.dragState.scale}) translate(${newOffsetX}px, ${newOffsetY}px) translateZ(0)`; };
