@@ -49,49 +49,36 @@
         .text-colegio { color: var(--logo-blue); font-family: 'Montserrat', sans-serif; font-size: clamp(1rem, 3vw, 1.2rem); font-weight: 700; letter-spacing: 1px; margin-bottom: -8px; }
         .text-pinceladas { font-family: 'Chewy', cursive; color: var(--logo-red); font-size: clamp(2.5rem, 8vw, 3.5rem); line-height: 1; }
         .text-calificaciones { background-color: var(--logo-blue); color: #ffffff; padding: 4px 8px; border-radius: 50px; font-family: 'Montserrat', sans-serif; font-size: clamp(1rem, 3vw, 1.2rem); font-weight: 700; display: flex; justify-content: center; align-items: center; margin-top: -3px; letter-spacing: 2px; text-align: center; }
-        header { margin-bottom: 5vh; }
+        header { margin-bottom: 3vh; } /* Reducido */
         .card-container {
             transition: transform 0.3s ease, box-shadow 0.3s ease;
-            width: 18%; 
+            width: 17%; /* Reducido */
             flex-shrink: 0; 
         }
         .card-container:hover {
             transform: translateY(-5px);
             box-shadow: 0 15px 30px -10px rgba(0, 0, 0, 0.15); 
         }
-        /* MEJORA: Se usa padding-top para mantener un aspect ratio consistente de 4:5 */
         .image-placeholder-wrapper {
             width: 100%;
-            padding-top: 125%; /* Esto crea una altura que es el 125% del ancho (ratio 4:5) */
+            padding-top: 125%; /* Ratio 4:5 */
             background-color: #e2e8f0;
             border-radius: 0.75rem; 
             position: relative;
             overflow: hidden;
             cursor: default;
         }
-        .admin-mode-drag {
-            cursor: grab;
-        }
-        .admin-mode-drag:active {
-            cursor: grabbing;
-        }
+        .admin-mode-drag { cursor: grab; }
+        .admin-mode-drag:active { cursor: grabbing; }
         .placeholder-text {
-            position: absolute;
-            top: 50%;
-            left: 50%;
+            position: absolute; top: 50%; left: 50%;
             transform: translate(-50%, -50%);
-            font-size: 1.2rem; 
-            font-weight: 600;
-            color: #64748b;
-            text-align: center;
-            z-index: 1;
+            font-size: 1.2rem; font-weight: 600; color: #64748b;
+            text-align: center; z-index: 1;
         }
         .actual-image {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
+            position: absolute; top: 0; left: 0;
+            width: 100%; height: 100%;
             object-fit: cover;
             transform-origin: center center;
         }
@@ -103,11 +90,11 @@
         .zoom-slider::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 16px; height: 16px; border-radius: 50%; background: var(--logo-blue); cursor: pointer; }
         
         #cards-container {
-            display: flex; flex-direction: row; flex-wrap: nowrap; justify-content: center; align-items: flex-start; gap: 1.5rem;
+            display: flex; flex-direction: row; flex-wrap: nowrap; justify-content: center; align-items: flex-start; gap: 1rem; /* Reducido */
         }
         #card-Secundaria_Primer_Ciclo { margin-top: 0; }
-        #card-Primaria_Primer_Ciclo, #card-Primaria_Segundo_Ciclo { margin-top: 4vh; }
-        #card-Inicial_Primer_Ciclo, #card-Inicial_Segundo_Ciclo { margin-top: 8vh; }
+        #card-Primaria_Primer_Ciclo, #card-Primaria_Segundo_Ciclo { margin-top: 2.5vh; } /* Reducido */
+        #card-Inicial_Primer_Ciclo, #card-Inicial_Segundo_Ciclo { margin-top: 5vh; } /* Reducido */
         
         @media (max-width: 1024px) {
             header { margin-bottom: 2rem; }
@@ -216,26 +203,26 @@
             createCardElement(cycle) {
                 const card = document.createElement('div');
                 card.id = `card-${cycle.id}`;
-                card.className = "card-container bg-white p-3 rounded-xl shadow-lg border border-gray-200 flex flex-col items-center";
+                card.className = "card-container bg-white p-2 rounded-xl shadow-lg border border-gray-200 flex flex-col items-center";
                 
                 card.innerHTML = `
-                    <h2 class="text-lg font-bold text-indigo-800 mb-2 text-center">${cycle.name}</h2>
+                    <h2 class="text-base font-bold text-indigo-800 mb-1.5 text-center">${cycle.name}</h2>
                     <div id="wrapper-${cycle.id}" class="image-placeholder-wrapper shadow-inner">
                         <span class="placeholder-text">SIN IMAGEN</span>
                         <img id="img-${cycle.id}" class="actual-image hidden" alt="Maestro del Mes ${cycle.name}">
                     </div>
-                    <div class="mt-3 w-full text-center">
-                        <h3 id="name-${cycle.id}" class="text-md font-extrabold text-gray-900 truncate"></h3>
-                        <p id="desc-${cycle.id}" class="text-sm text-gray-600 italic break-words h-10"></p>
+                    <div class="mt-2 w-full text-center">
+                        <h3 id="name-${cycle.id}" class="text-sm font-extrabold text-gray-900 truncate"></h3>
+                        <p id="desc-${cycle.id}" class="text-xs text-gray-600 italic break-words h-10"></p>
                     </div>
-                    <div id="controls-${cycle.id}" class="admin-controls hidden w-full mt-3 pt-3 border-t border-gray-200 space-y-3">
+                    <div id="controls-${cycle.id}" class="admin-controls hidden w-full mt-2 pt-2 border-t border-gray-200 space-y-2">
                         <input type="url" id="url-input-${cycle.id}" placeholder="Pega URL de la imagen aquí" class="w-full p-2 border border-gray-300 rounded-lg text-sm">
                         <div>
                              <label class="text-xs font-semibold text-gray-700 block mb-1">Ajusta el zoom y la posición</label>
                              <input type="range" id="zoom-slider-${cycle.id}" min="100" max="300" value="100" class="zoom-slider">
                         </div>
                         <input type="text" id="name-input-${cycle.id}" placeholder="Nombre del Maestro" class="w-full p-2 border border-gray-300 rounded-lg text-sm">
-                        <textarea id="desc-input-${cycle.id}" placeholder="Frase o reconocimiento" maxlength="100" class="w-full p-2 border border-gray-300 rounded-lg text-sm resize-none h-16"></textarea>
+                        <textarea id="desc-input-${cycle.id}" placeholder="Frase o reconocimiento" maxlength="100" class="w-full p-2 border border-gray-300 rounded-lg text-sm resize-none h-14"></textarea>
                         <button id="btn-${cycle.id}" class="w-full bg-indigo-600 text-white font-bold py-2 rounded-lg hover:bg-indigo-700 transition shadow-md text-sm">
                             Guardar Cambios
                         </button>
@@ -290,8 +277,6 @@
                 nameEl.textContent = data.teacherName || '—';
                 descEl.textContent = data.description || '';
 
-                // --- MEJORA DE ESTABILIDAD: Pre-carga de imagen ---
-                // Solo actualiza la imagen si la URL es válida y la imagen carga correctamente.
                 if (data.imageUrl) {
                     const tempImg = new Image();
                     tempImg.onload = () => {
@@ -301,7 +286,6 @@
                         placeholderEl.classList.add('hidden');
                     };
                     tempImg.onerror = () => {
-                        // Si la URL falla, muestra el placeholder.
                         imgEl.classList.add('hidden');
                         placeholderEl.classList.remove('hidden');
                     };
@@ -311,7 +295,6 @@
                     placeholderEl.classList.remove('hidden');
                 }
 
-                // Actualizar controles de admin
                 document.getElementById(`name-input-${cycleId}`).value = data.teacherName || '';
                 document.getElementById(`desc-input-${cycleId}`).value = data.description || '';
                 document.getElementById(`url-input-${cycleId}`).value = data.imageUrl || '';
@@ -322,21 +305,16 @@
                 const statusEl = document.getElementById(`save-status-${cycleId}`);
                 statusEl.textContent = 'Guardando...';
 
-                // Recolectar todos los valores de los inputs
                 const teacherName = document.getElementById(`name-input-${cycleId}`).value.trim();
                 const description = document.getElementById(`desc-input-${cycleId}`).value.trim();
                 const imageUrl = document.getElementById(`url-input-${cycleId}`).value.trim();
                 const imageScale = document.getElementById(`zoom-slider-${cycleId}`).value / 100;
 
-                // Obtener transformaciones de la imagen directamente del estilo
                 const imgEl = document.getElementById(`img-${cycleId}`);
                 const transform = this.parseTransform(imgEl.style.transform);
 
                 const dataToSave = {
-                    teacherName,
-                    description,
-                    imageUrl,
-                    imageScale,
+                    teacherName, description, imageUrl, imageScale,
                     imageOffsetX: transform.offsetX,
                     imageOffsetY: transform.offsetY,
                     lastUpdated: new Date().toISOString()
@@ -353,12 +331,12 @@
                 }
             },
 
-            // 5. LÓGICA DE INTERACCIÓN (igual a la original, pero encapsulada)
+            // 5. LÓGICA DE INTERACCIÓN
             toggleAdminMode() {
                 this.adminMode = !this.adminMode;
                 document.querySelectorAll('.admin-controls').forEach(el => el.classList.toggle('hidden', !this.adminMode));
                 document.querySelectorAll('.image-placeholder-wrapper').forEach(el => el.classList.toggle('admin-mode-drag', this.adminMode));
-                document.getElementById('status-message').textContent = ''; // Se elimina el mensaje del modo edición
+                document.getElementById('status-message').textContent = '';
             },
             
             handleZoom(slider) {
@@ -384,7 +362,7 @@
                     target: img,
                     startX: event.clientX || event.touches[0].clientX,
                     startY: event.clientY || event.touches[0].clientY,
-                    ...this.parseTransform(img.style.transform) // Captura offsetX y offsetY iniciales
+                    ...this.parseTransform(img.style.transform)
                 };
                 this.dragState.startOffsetX = this.dragState.offsetX;
                 this.dragState.startOffsetY = this.dragState.offsetY;
@@ -433,3 +411,4 @@
     </script>
 </body>
 </html>
+
