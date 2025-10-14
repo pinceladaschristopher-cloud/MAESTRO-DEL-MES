@@ -81,6 +81,10 @@
             width: 100%; height: 100%;
             object-fit: cover;
             transform-origin: center center;
+            /* NUEVO: Hints para que el navegador renderice con mayor calidad */
+            image-rendering: -webkit-optimize-contrast;
+            image-rendering: high-quality;
+            backface-visibility: hidden;
         }
         .zoom-slider {
             -webkit-appearance: none; appearance: none;
@@ -281,7 +285,7 @@
                     const tempImg = new Image();
                     tempImg.onload = () => {
                         imgEl.src = data.imageUrl;
-                        imgEl.style.transform = `scale(${data.imageScale || 1}) translate(${data.imageOffsetX || 0}px, ${data.imageOffsetY || 0}px)`;
+                        imgEl.style.transform = `scale(${data.imageScale || 1}) translate(${data.imageOffsetX || 0}px, ${data.imageOffsetY || 0}px) translateZ(0)`;
                         imgEl.classList.remove('hidden');
                         placeholderEl.classList.add('hidden');
                     };
@@ -344,7 +348,7 @@
                 const imgEl = document.getElementById(`img-${cycleId}`);
                 const scale = slider.value / 100;
                 const currentTransform = this.parseTransform(imgEl.style.transform);
-                imgEl.style.transform = `scale(${scale}) translate(${currentTransform.offsetX}px, ${currentTransform.offsetY}px)`;
+                imgEl.style.transform = `scale(${scale}) translate(${currentTransform.offsetX}px, ${currentTransform.offsetY}px) translateZ(0)`;
             },
 
             startDrag(event) {
@@ -379,7 +383,7 @@
                 const newOffsetX = this.dragState.startOffsetX + deltaX;
                 const newOffsetY = this.dragState.startOffsetY + deltaY;
                 
-                this.dragState.target.style.transform = `scale(${this.dragState.scale}) translate(${newOffsetX}px, ${newOffsetY}px)`;
+                this.dragState.target.style.transform = `scale(${this.dragState.scale}) translate(${newOffsetX}px, ${newOffsetY}px) translateZ(0)`;
             },
             
             endDrag() {
